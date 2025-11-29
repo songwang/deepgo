@@ -1,0 +1,116 @@
+{% extends 'layout.tmpl' %}
+
+{% block css %}
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+{% endblock %}
+
+{% block content %}
+  <div id='regdiv' class='center'>
+    <table class='center'>
+      <tr><td>
+        {% with messages = get_flashed_messages( with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class='alert alert-{{ category }}'>
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% else %}
+            <br>
+          {% endif %}
+        {% endwith %}
+      </td></tr>
+      <tr><td>
+        <form method='POST' action=''>
+          {{ form.hidden_tag() }}
+          <fieldset class='form-group'>
+            <div class='form-group'>
+              {{ form.username.label( class='form-control-label') }}
+              {% if form.username.errors %}
+                {{ form.username( class='form-control form-control-lg is-invalid') }}
+                <div class='invalid-feedback'>
+                  {% for error in form.username.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                {{ form.username( class='form-control form-control-lg') }}
+              {% endif %}
+            </div>
+            <div class='form-group'>
+              {{ form.fname.label( class='form-control-label') }}
+              {% if form.fname.errors %}
+                {{ form.fname( class='form-control form-control-lg is-invalid') }}
+                <div class='invalid-feedback'>
+                  {% for error in form.fname.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                {{ form.fname( class='form-control form-control-lg') }}
+              {% endif %}
+            </div>
+            <div class='form-group'>
+              {{ form.lname.label( class='form-control-label') }}
+              {% if form.lname.errors %}
+                {{ form.lname( class='form-control form-control-lg is-invalid') }}
+                <div class='invalid-feedback'>
+                  {% for error in form.lname.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                {{ form.lname( class='form-control form-control-lg') }}
+              {% endif %}
+            </div>
+            <div class='form-group'>
+              {{ form.email.label( class='form-control-label') }}
+              {% if form.email.errors %}
+                {{ form.email( class='form-control form-control-lg is-invalid') }}
+                <div class='invalid-feedback'>
+                  {% for error in form.email.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                {{ form.email( class='form-control form-control-lg') }}
+              {% endif %}
+            </div>
+            <div class='form-group'>
+              {{ form.password.label( class='form-control-label') }}
+              {% if form.password.errors %}
+                {{ form.password( class='form-control form-control-lg is-invalid') }}
+                <div class='invalid-feedback'>
+                  {% for error in form.password.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                {{ form.password( class='form-control form-control-lg') }}
+              {% endif %}
+            </div>
+            <div class='form-group'>
+              {{ form.confirm_password.label( class='form-control-label') }}
+              {% if form.confirm_password.errors %}
+                {{ form.confirm_password( class='form-control form-control-lg is-invalid') }}
+                <div class='invalid-feedback'>
+                  {% for error in form.confirm_password.errors %}
+                    <span>{{ error }}</span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                {{ form.confirm_password( class='form-control form-control-lg') }}
+              {% endif %}
+            </div>
+          </fieldset>
+          <div class='form-group'>
+            {{ form.submit( class='btn btn-outline-info') }}
+          </div><br>
+          <div class='text-muted'>
+            {{ tr('Already Have An Account?') }} <a class='ml-2' href='{{ url_for("login") }}'> {{tr('Sign In.')}} </a>
+          </div>
+        </form>
+      </td></tr>
+    </table>
+  </div>
+{% endblock content %}

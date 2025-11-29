@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Go Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        #go-board {
+            margin: 20px auto;
+            border: 2px solid #8B4513;
+            background-color: #DEB887;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .game-info {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: white;
+            border-radius: 5px;
+        }
+        .status {
+            margin: 10px 0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Simple Go Game vs KataGo</h1>
+        
+        <div class="controls">
+            <button id="new-game">New Game</button>
+            <button id="pass">Pass</button>
+            <button id="undo">Undo</button>
+            <button id="score">Score Position</button>
+        </div>
+        
+        <div class="game-info">
+            <div class="status" id="status">Click "New Game" to start</div>
+            <div id="score-info"></div>
+        </div>
+        
+        <canvas id="go-board" width="570" height="570"></canvas>
+        
+        <div id="moves-list" style="margin-top: 20px;">
+            <strong>Moves:</strong> <span id="moves"></span>
+        </div>
+    </div>
+
+    <script>
+        class SimpleGoGame {
+            constructor() {
+                this.boardSize = 19;
+                this.cellSize = 30;
+                this.moves = [];
+                this.currentPlayer = 1; // 1 = black (human), -1 = white (AI)
+                this.board = this.createEmptyBoard();
+                this.canvas = document.getElementById('go-board');
+                this.ctx = this.canvas.getContext('2d');
+                this.gameActive = false;
+                
+                this.setupEventListeners();
+                this.drawBoard();
+            }
+            
+            createEmptyBoard() {
+                return Array(this.boardSize).fill(null).map(() => Array(this.boardSize).fill(0));
+            }
+            
+            setupEventListeners() {
+                document.getElementById('new-game').addEventListener('click', () => this.newGame());
+                document.getElementById('pass').addEventListener('click', () => this.pass());
+                document.getElementById('undo').addEventListener('click', () => this.undo());
+                document.getElementById('score').addEventListener('click', () => this.scorePosition());
+                
+                this.canvas.addEventListener('click', (e) => this.handleClick(e));
+            }
+            
+            newGame() {
+                this.board = this.createEmptyBoard();
+                this.moves = [];
+                this.currentPlayer = 1;
+                this.gameActive = true;
+                this.updateStatus("Your turn (Black). Click to place a stone.");
+                this.updateMovesList();
+                this.drawBoard();
+            }
+            
+            handleClick(e) {
+                if (!this.gameActive || this.currentPlayer !== 1) return;
+                
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                const col = Math.round((x - this.cellSize) / this.cellSize);
+                const row = Math.round((y - this.cellSize) / this.cellSize);
+                
+                if (this.isValidMove(row, col)) {
+                    this.makeMove(row, col);
+                }
+            }
+            
+            isValidMove(row, col) {
+                return row >= 0 && row < this.boardSize && 
+                       col >= 0 && col < this.boardSize && 
+                       this.board[row][col] === 0;
+            }
+            
+            makeMove(row, col) {
+                // Place stone
+                this.board[row][col] = this.currentPlayer;
+                
+                // Convert to SGF notation (A-S)
+                const sgfMove = String.fromCharCode(65 + col) + (this.boardSize - row);
+                this.moves.push(sgfMove);
+                
+                this.drawBoard();
+                this.updateMovesList();
+                
+                if (this.currentPlayer === 1) {
+                    this.currentPlayer = -1;
+                    this.updateStatus("Getting AI move...");
+                    this.getAIMove();
+                } else {
+                    this.currentPlayer = 1;
+                    this.updateStatus("Your turn (Black). Click to place a stone.");
+                }
+            }
+            
+            async getAIMove() {
+                try {
+                    const response = await fetch('/get_move', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            board_size: this.boardSize,
+                            moves: this.moves
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        this.updateStatus("Error getting AI move: " + data.error);
+                        return;
+                    }
+                    
+                    // Get the best move from AI response
+                    if (data.bot_move) {
+                        const aiMove = data.bot_move;
+                        if (aiMove.toLowerCase() === 'pass') {
+                            this.pass();
+                        } else {
+                            this.makeAIMove(aiMove);
+                        }
+                    } else {
+                        this.updateStatus("No move received from AI");
+                        this.currentPlayer = 1;
+                    }
+                } catch (error) {
+                    this.updateStatus("Error: " + error.message);
+                    this.currentPlayer = 1;
+                }
+            }
+            
+            makeAIMove(sgfMove) {
+                // Convert SGF move to board coordinates
+                const col = sgfMove.charCodeAt(0) - 65;
+                const row = this.boardSize - parseInt(sgfMove.slice(1));
+                
+                this.board[row][col] = -1;
+                this.moves.push(sgfMove);
+                
+                this.currentPlayer = 1;
+                this.updateStatus("Your turn (Black). Click to place a stone.");
+                this.drawBoard();
+                this.updateMovesList();
+            }
+            
+            pass() {
+                this.moves.push('pass');
+                this.currentPlayer *= -1;
+                this.updateMovesList();
+                
+                if (this.currentPlayer === -1) {
+                    this.updateStatus("You passed. Getting AI move...");
+                    this.getAIMove();
+                } else {
+                    this.updateStatus("AI passed. Your turn (Black).");
+                }
+            }
+            
+            undo() {
+                if (this.moves.length >= 2) {
+                    // Remove last two moves (player + AI)
+                    const lastMove = this.moves.pop();
+                    const secondLastMove = this.moves.pop();
+                    
+                    // Rebuild board from moves
+                    this.board = this.createEmptyBoard();
+                    for (let i = 0; i < this.moves.length; i++) {
+                        const move = this.moves[i];
+                        if (move.toLowerCase() !== 'pass') {
+                            const col = move.charCodeAt(0) - 65;
+                            const row = this.boardSize - parseInt(move.slice(1));
+                            this.board[row][col] = (i % 2 === 0) ? 1 : -1;
+                        }
+                    }
+                    
+                    this.currentPlayer = 1;
+                    this.updateStatus("Your turn (Black). Click to place a stone.");
+                    this.drawBoard();
+                    this.updateMovesList();
+                }
+            }
+            
+            async scorePosition() {
+                try {
+                    const response = await fetch('/get_score', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            board_size: this.boardSize,
+                            moves: this.moves
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        document.getElementById('score-info').innerHTML = "Error getting score: " + data.error;
+                        return;
+                    }
+                    
+                    const scoreInfo = `Score: ${data.score ? data.score.toFixed(1) : 'N/A'} | ` +
+                                     `Win Rate: ${data.winrate ? (data.winrate * 100).toFixed(1) + '%' : 'N/A'}`;
+                    document.getElementById('score-info').innerHTML = scoreInfo;
+                } catch (error) {
+                    document.getElementById('score-info').innerHTML = "Error: " + error.message;
+                }
+            }
+            
+            drawBoard() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw grid
+                this.ctx.strokeStyle = '#000000';
+                this.ctx.lineWidth = 1;
+                
+                for (let i = 0; i < this.boardSize; i++) {
+                    // Vertical lines
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.cellSize + i * this.cellSize, this.cellSize);
+                    this.ctx.lineTo(this.cellSize + i * this.cellSize, this.cellSize + (this.boardSize - 1) * this.cellSize);
+                    this.ctx.stroke();
+                    
+                    // Horizontal lines
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.cellSize, this.cellSize + i * this.cellSize);
+                    this.ctx.lineTo(this.cellSize + (this.boardSize - 1) * this.cellSize, this.cellSize + i * this.cellSize);
+                    this.ctx.stroke();
+                }
+                
+                // Draw star points
+                const starPoints = [3, 9, 15]; // for 19x19 board
+                this.ctx.fillStyle = '#000000';
+                for (let row of starPoints) {
+                    for (let col of starPoints) {
+                        this.ctx.beginPath();
+                        this.ctx.arc(
+                            this.cellSize + col * this.cellSize,
+                            this.cellSize + row * this.cellSize,
+                            3, 0, 2 * Math.PI
+                        );
+                        this.ctx.fill();
+                    }
+                }
+                
+                // Draw stones
+                for (let row = 0; row < this.boardSize; row++) {
+                    for (let col = 0; col < this.boardSize; col++) {
+                        if (this.board[row][col] !== 0) {
+                            this.ctx.beginPath();
+                            this.ctx.arc(
+                                this.cellSize + col * this.cellSize,
+                                this.cellSize + row * this.cellSize,
+                                this.cellSize / 2 - 2, 0, 2 * Math.PI
+                            );
+                            this.ctx.fillStyle = this.board[row][col] === 1 ? '#000000' : '#FFFFFF';
+                            this.ctx.fill();
+                            this.ctx.strokeStyle = '#000000';
+                            this.ctx.lineWidth = 1;
+                            this.ctx.stroke();
+                        }
+                    }
+                }
+            }
+            
+            updateStatus(message) {
+                document.getElementById('status').textContent = message;
+            }
+            
+            updateMovesList() {
+                document.getElementById('moves').textContent = this.moves.join(', ');
+            }
+        }
+        
+        // Initialize game when page loads
+        window.addEventListener('load', () => {
+            new SimpleGoGame();
+        });
+    </script>
+</body>
+</html>

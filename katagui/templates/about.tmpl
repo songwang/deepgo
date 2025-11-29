@@ -1,0 +1,57 @@
+{% extends 'layout.tmpl' %}
+
+{% block pre %}
+  <script type='text/javascript'>
+   /* Filename: katago-gui/about.tmpl
+    * Author: AHN
+    * Creation Date: Jul, 2020
+    */
+  </script>
+{% endblock pre %}
+
+{% block css %}
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+{% endblock %}
+
+{% block content %}
+  <table align='center'>
+    <tr><td class='text-center'> &nbsp; </td></tr>
+    <tr><td class='text-center'> <h1> About </h1> </td></tr>
+    <tr><td><pre>
+This is the TensorRT version of KataGo v1.14.1
+running on an NVIDIA RTX 3080.
+
+The Pro Network is the strongest stable net as of Mar 12, 2024:
+kata1-b18c384nbt-s9131461376-d4087399203.bin.gz 
+
+The Guest network is still the old 10 block version:
+g170e-b10c128-s1141046784-d204142634.bin.gz 
+
+Credits:
+---------
+
+KataGo, by David J. Wu, is here:
+https://github.com/lightvector/KataGo
+
+Go data structures were pilfered from the
+book 'Deep Learning and the Game of Go'
+by Max Pumperla and Kevin Ferguson.
+
+The Go board is jGoBoard by
+Joonas Pihlajamaa.
+
+Chinese translations were provided by
+Xiaocheng Stephen Hu.
+
+Japanese translations were provided by
+Satoshi Banya.
+
+Plumbing and glue is by me:
+
+Andreas Hauenstein
+hauensteina@gmail.com
+https://github.com/hauensteina/katagui
+</pre>
+    </td></tr>
+  </table>
+{% endblock content %}
