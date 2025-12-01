@@ -52,7 +52,7 @@ instance/
 *.temp
 
 # KataGo model files (large binary files)
-*.bin.gz
+#*.bin.gz
 
 # Node modules (if any)
 node_modules/
