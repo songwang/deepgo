@@ -1,0 +1,500 @@
+import React, { useState, useCallback, useRef } from 'react';
+import GoBoard from './GoBoard';
+import { useGameStore } from '../store/gameStore';
+import { useKataGo } from '../hooks/useKataGo';
+import { api } from '../services/api';
+import type { Point, Move, KataGoMove } from '../types/game';
+import { pointToSGF, sgfToPoint } from '../services/coordinateUtils';
+import { moves2sgf, downloadSgf, sgf2list, readFileAsText } from '../services/sgf';
+
+const GamePlay: React.FC = () => {
+  const {
+    boardSize,
+    handicap,
+    komi,
+    moves,
+    currentPosition,
+    nextPlayer,
+    boardState,
+    settings,
+    error: storeError,
+    newGame,
+    addMove,
+    goToStart,
+    goToEnd,
+    nextMove: goToNextMove,
+    previousMove: goToPreviousMove,
+    removeLastMove,
+    getMoveList,
+    getCurrentMove,
+    canPlayAt,
+    setGameHash,
+    setError,
+    updateSettings,
+  } = useGameStore();
+
+  const { getMove, getScore, error: kataError } = useKataGo();
+
+  const [showNewGameDialog, setShowNewGameDialog] = useState(false);
+  const [selectedHandicap, setSelectedHandicap] = useState(0);
+  const [selectedKomi, setSelectedKomi] = useState(7.5);
+  const [bestMoves, setBestMoves] = useState<KataGoMove[]>([]);
+  const [scoreInfo, setScoreInfo] = useState<{ score: number; winprob: number } | null>(null);
+  const [isWaitingForBot, setIsWaitingForBot] = useState(false);
+  const [showBestMovesOnBoard, setShowBestMovesOnBoard] = useState(false);
+
+  // File input ref for loading SGF
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Request bot move
+  const requestBotMove = useCallback(async () => {
+    if (isWaitingForBot) return;
+
+    setIsWaitingForBot(true);
+    setShowBestMovesOnBoard(false); // Clear best move marks
+    const moveList = getMoveList();
+
+    const response = await getMove(boardSize, moveList, komi, handicap);
+
+    if (response) {
+      const botMove: Move = {
+        mv: response.bot_move,
+        p: response.diagnostics.winprob,
+        score: response.diagnostics.score,
+        agent: 'bot',
+        data: response.diagnostics,
+      };
+
+      addMove(botMove);
+      setBestMoves(response.diagnostics.best_ten);
+      setScoreInfo({
+        score: response.diagnostics.score,
+        winprob: response.diagnostics.winprob,
+      });
+    }
+
+    setIsWaitingForBot(false);
+  }, [isWaitingForBot, getMoveList, boardSize, komi, handicap, getMove, addMove]);
+
+  // Handle user click on board
+  const handleIntersectionClick = useCallback(
+    async (point: Point) => {
+      if (isWaitingForBot || currentPosition !== moves.length) {
+        // Can't play if we're not at the end of the game or waiting for bot
+        return;
+      }
+
+      if (!canPlayAt(point)) {
+        return;
+      }
+
+      const sgfMove = pointToSGF(point, boardSize);
+      const humanMove: Move = {
+        mv: sgfMove,
+        agent: 'human',
+      };
+
+      addMove(humanMove);
+
+      // Hide best moves after user makes a move
+      setShowBestMovesOnBoard(false);
+
+      // Request bot response
+      if (!settings.disable_ai) {
+        setTimeout(() => requestBotMove(), 100);
+      }
+    },
+    [isWaitingForBot, currentPosition, moves.length, canPlayAt, boardSize, addMove, settings.disable_ai, requestBotMove]
+  );
+
+  // Create new game
+  const handleNewGame = useCallback(async () => {
+    try {
+      const response = await api.createGame({
+        handicap: selectedHandicap,
+        komi: selectedKomi,
+      });
+
+      setGameHash(response.game_hash);
+      newGame(selectedHandicap, selectedKomi, boardSize);
+      setShowNewGameDialog(false);
+
+      // If handicap game, white (bot) plays first
+      if (selectedHandicap >= 2 && !settings.disable_ai) {
+        setTimeout(() => requestBotMove(), 500);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create game');
+    }
+  }, [selectedHandicap, selectedKomi, boardSize, setGameHash, newGame, settings.disable_ai, requestBotMove, setError]);
+
+  // Pass move
+  const handlePass = useCallback(() => {
+    const passMove: Move = {
+      mv: 'pass',
+      agent: 'human',
+    };
+    addMove(passMove);
+
+    if (!settings.disable_ai) {
+      setTimeout(() => requestBotMove(), 100);
+    }
+  }, [addMove, settings.disable_ai, requestBotMove]);
+
+  // Get current score
+  const handleGetScore = useCallback(async () => {
+    const moveList = getMoveList();
+    const response = await getScore(boardSize, moveList);
+
+    if (response) {
+      setScoreInfo({
+        score: response.score,
+        winprob: response.winprob,
+      });
+    }
+  }, [getMoveList, boardSize, getScore]);
+
+  // Fetch best moves for current position
+  const fetchBestMoves = useCallback(async () => {
+    const moveList = getMoveList();
+    const response = await getMove(boardSize, moveList, komi, handicap);
+
+    if (response) {
+      setBestMoves(response.diagnostics.best_ten);
+      setScoreInfo({
+        score: response.diagnostics.score,
+        winprob: response.diagnostics.winprob,
+      });
+    }
+  }, [getMoveList, boardSize, komi, handicap, getMove]);
+
+  // Handle Best button click
+  const handleToggleBestMoves = useCallback(async () => {
+    const newValue = !showBestMovesOnBoard;
+    setShowBestMovesOnBoard(newValue);
+
+    // Fetch best moves when turning on
+    if (newValue) {
+      await fetchBestMoves();
+    }
+  }, [showBestMovesOnBoard, fetchBestMoves]);
+
+  // Save game as SGF
+  const handleSaveSgf = useCallback(() => {
+    if (moves.length === 0) {
+      setError('No moves to save');
+      return;
+    }
+
+    const metadata = {
+      pb: 'Black',
+      pw: 'White',
+      km: komi.toString(),
+      dt: new Date().toISOString().slice(0, 10),
+    };
+
+    const sgf = moves2sgf(moves, metadata);
+    const filename = `game-${new Date().getTime()}.sgf`;
+    downloadSgf(filename, sgf);
+  }, [moves, komi, setError]);
+
+  // Load SGF file
+  const handleLoadSgf = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const sgfText = await readFileAsText(file);
+      const parsed = sgf2list(sgfText);
+
+      // Start a new game with the loaded komi
+      newGame(0, parsed.komi, boardSize);
+
+      // Add all moves from the SGF
+      for (let i = 0; i < parsed.moves.length; i++) {
+        const mv = parsed.moves[i];
+        const prob = parseFloat(parsed.probs[i]) || 0;
+        const score = parseFloat(parsed.scores[i]) || 0;
+
+        const move: Move = {
+          mv,
+          p: prob / 100, // Convert from percentage to 0-1
+          score,
+          agent: '',
+        };
+
+        addMove(move);
+      }
+
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load SGF file');
+    }
+  }, [boardSize, newGame, addMove, setError]);
+
+  // Toggle bot mode
+  const handleToggleBotMode = useCallback(() => {
+    updateSettings({ disable_ai: !settings.disable_ai });
+  }, [settings.disable_ai, updateSettings]);
+
+  // Show emoji based on win probability change
+  const getMoveEmoji = (move: Move | null): string => {
+    if (!move || !move.data) return '';
+
+    const winprob = move.data.winprob;
+    if (winprob > 0.65) return '😊';
+    if (winprob > 0.55) return '🙂';
+    if (winprob > 0.45) return '😐';
+    if (winprob > 0.35) return '😟';
+    return '😞';
+  };
+
+  const currentMove = getCurrentMove();
+
+  // Mark the last move with a circle
+  const lastMoveMark = React.useMemo(() => {
+    if (moves.length === 0 || currentPosition === 0) return null;
+
+    const lastMove = moves[currentPosition - 1];
+    if (!lastMove || lastMove.mv === 'pass' || lastMove.mv === 'resign') return null;
+
+    const point = sgfToPoint(lastMove.mv, boardSize);
+    if (!point) return null;
+
+    return {
+      coord: point,
+      type: 'circle' as const,
+    };
+  }, [moves, currentPosition, boardSize]);
+
+  // Convert best moves to board marks (A-J letters)
+  const bestMoveMarks = React.useMemo(() => {
+    if (!showBestMovesOnBoard || !bestMoves.length) return [];
+
+    // Filter to only show high-probability moves (psv >= 5%)
+    const highProbMoves = bestMoves.filter(move => move.psv >= 5.0);
+
+    const letters = 'ABCDEFGHIJ';
+    return highProbMoves.slice(0, 10).map((move, idx) => {
+      const point = sgfToPoint(move.move, boardSize);
+      if (!point) return null;
+
+      return {
+        coord: point,
+        type: 'letter' as const,
+        value: letters[idx],
+      };
+    }).filter((mark): mark is import('../types/game').BoardMark => mark !== null);
+  }, [showBestMovesOnBoard, bestMoves, boardSize]);
+
+  // Combine all marks
+  const allMarks = React.useMemo(() => {
+    const marks = [...bestMoveMarks];
+    if (lastMoveMark) marks.push(lastMoveMark);
+    return marks;
+  }, [bestMoveMarks, lastMoveMark]);
+
+  return (
+    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+      {/* <h1>DeepGo - Play Against KataGo</h1> */}
+
+      {/* Game controls */}
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <button onClick={() => setShowNewGameDialog(true)}>New</button>
+        <button onClick={goToStart} disabled={currentPosition === 0}>
+          First
+        </button>
+        <button onClick={goToPreviousMove} disabled={currentPosition === 0}>
+          Prev
+        </button>
+        <button onClick={goToNextMove} disabled={currentPosition === moves.length}>
+          Next
+        </button>
+        <button onClick={goToEnd} disabled={currentPosition === moves.length}>
+          Last
+        </button>
+        <button onClick={removeLastMove} disabled={moves.length === 0 || currentPosition !== moves.length}>
+          Undo
+        </button>
+        <button onClick={handlePass} disabled={isWaitingForBot || currentPosition !== moves.length}>
+          Pass
+        </button>
+        <button onClick={handleGetScore}>Score</button>
+        <button onClick={requestBotMove} disabled={isWaitingForBot}>
+          AI Play
+        </button>
+        <button
+          onClick={handleToggleBestMoves}
+          style={{
+            backgroundColor: showBestMovesOnBoard ? '#4CAF50' : '#f0f0f0',
+            color: showBestMovesOnBoard ? 'white' : 'black'
+          }}
+        >
+          Best
+        </button>
+        <button onClick={() => fileInputRef.current?.click()}>Load</button>
+        <button onClick={handleSaveSgf}>Save</button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginLeft: '10px' }}>
+          <span style={{ fontSize: '14px', fontWeight: '500' }}>Bot Mode:</span>
+          <div
+            onClick={handleToggleBotMode}
+            style={{
+              position: 'relative',
+              width: '44px',
+              height: '24px',
+              backgroundColor: !settings.disable_ai ? '#4CAF50' : '#ccc',
+              borderRadius: '12px',
+              transition: 'background-color 0.3s',
+              cursor: 'pointer',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: '2px',
+                left: !settings.disable_ai ? '22px' : '2px',
+                width: '20px',
+                height: '20px',
+                backgroundColor: 'white',
+                borderRadius: '50%',
+                transition: 'left 0.3s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              }}
+            />
+          </div>
+        </label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".sgf"
+          style={{ display: 'none' }}
+          onChange={handleLoadSgf}
+        />
+      </div>
+
+      {/* Error messages */}
+      {(storeError || kataError) && (
+        <div style={{ padding: '10px', backgroundColor: '#fee', border: '1px solid #fcc', marginBottom: '20px' }}>
+          Error: {storeError || kataError}
+        </div>
+      )}
+
+      {/* Main board */}
+      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+        <div>
+          <GoBoard
+            size={boardSize}
+            stones={boardState}
+            marks={allMarks}
+            onIntersectionClick={handleIntersectionClick}
+            showHover={currentPosition === moves.length && !isWaitingForBot}
+            nextPlayer={nextPlayer}
+            width={480}
+            height={480}
+          />
+
+          {/* Game info - moved below board */}
+          <div style={{ marginTop: '20px' }}>
+            <div>
+              <strong>Handicap:</strong> {handicap} | <strong>Komi:</strong> {komi} | <strong>Move:</strong>{' '}
+              {currentPosition} / {moves.length}
+              {isWaitingForBot && ' (Bot thinking...)'}
+            </div>
+            {scoreInfo && (
+              <div>
+                <strong>Score:</strong> {scoreInfo.score > 0 ? `B+${scoreInfo.score.toFixed(1)}` : `W+${Math.abs(scoreInfo.score).toFixed(1)}`} |{' '}
+                <strong>Win Probability:</strong> {scoreInfo.winprob.toFixed(1)}%
+              </div>
+            )}
+            {settings.show_emoji && currentMove && (
+              <div style={{ fontSize: '48px' }}>{getMoveEmoji(currentMove)}</div>
+            )}
+          </div>
+        </div>
+
+        {/* Side panel */}
+        <div style={{ flex: 1, minWidth: '300px' }}>
+          <h3>Best Moves</h3>
+          {settings.show_best_ten && bestMoves.length > 0 && (
+            <div>
+              <ol>
+                {bestMoves.slice(0, 10).map((move, idx) => (
+                  <li key={idx}>
+                    <strong>{move.move}</strong> - {move.psv.toFixed(1)}%
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      {/* New game dialog */}
+      {showNewGameDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '8px', minWidth: '400px' }}>
+            <h2>New Game</h2>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label>
+                <strong>Handicap:</strong>
+                <select
+                  value={selectedHandicap}
+                  onChange={(e) => setSelectedHandicap(Number(e.target.value))}
+                  style={{ marginLeft: '10px', padding: '5px' }}
+                >
+                  {[0, 2, 3, 4, 5, 6, 7, 8, 9].map((h) => (
+                    <option key={h} value={h}>
+                      {h === 0 ? 'Even game' : `${h} stones`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label>
+                <strong>Komi:</strong>
+                <select
+                  value={selectedKomi}
+                  onChange={(e) => setSelectedKomi(Number(e.target.value))}
+                  style={{ marginLeft: '10px', padding: '5px' }}
+                >
+                  <option value={0.5}>0.5</option>
+                  <option value={5.5}>5.5</option>
+                  <option value={6.5}>6.5</option>
+                  <option value={7.5}>7.5</option>
+                </select>
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowNewGameDialog(false)}>Cancel</button>
+              <button onClick={handleNewGame}>Start Game</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default GamePlay;

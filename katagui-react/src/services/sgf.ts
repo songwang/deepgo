@@ -1,0 +1,235 @@
+// SGF (Smart Game Format) utilities
+// Adapted from katagui original implementation
+
+import type { Move } from '../types/game';
+
+interface SgfMetadata {
+  pb?: string; // Black player
+  pw?: string; // White player
+  re?: string; // Result
+  km?: string; // Komi
+  dt?: string; // Date
+}
+
+interface ParsedSgf {
+  moves: string[];
+  probs: string[];
+  scores: string[];
+  pb: string;
+  pw: string;
+  winner: string;
+  komi: number;
+  RE: string;
+  DT: string;
+}
+
+/**
+ * Convert point notation to SGF coordinates
+ * e.g., Q16 -> pq (SGF format uses lowercase, rows from bottom)
+ */
+function pointToSgfCoords(move: string): string {
+  if (move === 'pass' || move === 'resign') return 'tt';
+
+  // Parse move like "Q16"
+  const col = move.charCodeAt(0) - 65; // A=0, B=1, etc.
+  const row = parseInt(move.substring(1));
+
+  const colChar = 'abcdefghijklmnopqrs'.charAt(col);
+  const rowChar = 'abcdefghijklmnopqrs'.charAt(19 - row);
+
+  return colChar + rowChar;
+}
+
+/**
+ * Convert SGF coordinates to point notation
+ * e.g., pq -> Q16
+ */
+function sgfCoordsToPoint(sgfCoords: string): string {
+  if (sgfCoords === 'tt' || sgfCoords === '') return 'pass';
+
+  const col = sgfCoords.charCodeAt(0) - 97; // a=0, b=1, etc.
+  const row = sgfCoords.charCodeAt(1) - 97;
+
+  const colChar = 'ABCDEFGHJKLMNOPQRST'.charAt(col);
+  const rowNum = 19 - row;
+
+  return colChar + rowNum;
+}
+
+/**
+ * Convert game moves to SGF format
+ */
+export function moves2sgf(
+  moves: Move[],
+  metadata: SgfMetadata = {}
+): string {
+  const dt = metadata.dt || new Date().toISOString().slice(0, 10);
+  const km = metadata.km || '7.5';
+
+  let sgf = '(;FF[4]SZ[19]\n';
+  sgf += 'SO[katagui.baduk.club]\n';
+  sgf += `PB[${metadata.pb || 'Black'}]\n`;
+  sgf += `PW[${metadata.pw || 'White'}]\n`;
+  sgf += `RE[${metadata.re || ''}]\n`;
+  sgf += `KM[${km}]\n`;
+  sgf += `DT[${dt}]\n`;
+
+  let movestr = '';
+  let result = '';
+  let color = 'B';
+
+  for (let idx = 0; idx < moves.length; idx++) {
+    const move = moves[idx];
+    const othercol = color === 'B' ? 'W' : 'B';
+
+    if (move.mv === 'resign') {
+      result = `RE[${othercol}+R]`;
+      break;
+    } else if (move.mv === 'pass') {
+      movestr += `;${color}[tt]`;
+    } else {
+      const sgfCoords = pointToSgfCoords(move.mv);
+      movestr += `;${color}[${sgfCoords}]`;
+
+      // Add AI analysis in comments if available
+      if (move.p !== undefined && move.score !== undefined) {
+        const prob = (move.p * 100).toFixed(1);
+        const score = move.score.toFixed(1);
+        movestr += `C[P:${prob} S:${score}]`;
+      }
+    }
+    color = othercol;
+  }
+
+  sgf += result;
+  sgf += movestr;
+  sgf += ')';
+
+  return sgf;
+}
+
+/**
+ * Download SGF as file
+ */
+export function downloadSgf(filename: string, sgf: string): void {
+  const blob = new Blob([sgf], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/**
+ * Extract value of SGF tag
+ */
+function getSgfTag(sgf: string, tag: string): string {
+  const regex = new RegExp(`${tag}\\[([^\\]]*)\\]`);
+  const match = sgf.match(regex);
+  return match ? match[1] : '';
+}
+
+/**
+ * Parse SGF node to extract move
+ */
+function parseMove(node: string): [string | null, string] {
+  // Look for ;B[...] or ;W[...]
+  const bMatch = node.match(/;B\[([^\]]*)\]/);
+  if (bMatch) {
+    return ['B', bMatch[1]];
+  }
+
+  const wMatch = node.match(/;W\[([^\]]*)\]/);
+  if (wMatch) {
+    return ['W', wMatch[1]];
+  }
+
+  return [null, ''];
+}
+
+/**
+ * Extract probability and score from comment
+ */
+function parseComment(node: string): [string, string] {
+  const match = node.match(/C\[P:([^\s]+)\s+S:([^\]]+)\]/);
+  if (match) {
+    return [match[1], match[2]];
+  }
+  return ['0.00', '0.00'];
+}
+
+/**
+ * Parse SGF string to move list
+ */
+export function sgf2list(sgf: string): ParsedSgf {
+  // Extract metadata
+  const RE = getSgfTag(sgf, 'RE');
+  const DT = getSgfTag(sgf, 'DT');
+  const pb = getSgfTag(sgf, 'PB');
+  const pw = getSgfTag(sgf, 'PW');
+  const kmStr = getSgfTag(sgf, 'KM');
+  const komi = parseFloat(kmStr) || 7.5;
+
+  let winner = '';
+  if (RE.toLowerCase().startsWith('w')) winner = 'w';
+  else if (RE.toLowerCase().startsWith('b')) winner = 'b';
+
+  const moves: string[] = [];
+  const probs: string[] = [];
+  const scores: string[] = [];
+
+  // Split into nodes (simplified parser for main line only)
+  const nodePattern = /;[BW]\[[^\]]*\](?:C\[[^\]]*\])?/g;
+  const nodes = sgf.match(nodePattern) || [];
+
+  for (const node of nodes) {
+    const [color, sgfCoords] = parseMove(node);
+
+    if (color) {
+      // Check if we need to insert a pass for color mismatch
+      const expectedColor = moves.length % 2 === 0 ? 'B' : 'W';
+      if (color !== expectedColor) {
+        moves.push('pass');
+        probs.push('0.00');
+        scores.push('0.00');
+      }
+
+      // Add the move
+      const move = sgfCoordsToPoint(sgfCoords);
+      moves.push(move);
+
+      // Extract probability and score from comment
+      const [prob, score] = parseComment(node);
+      probs.push(prob);
+      scores.push(score);
+    }
+  }
+
+  return {
+    moves,
+    probs,
+    scores,
+    pb,
+    pw,
+    winner,
+    komi,
+    RE,
+    DT,
+  };
+}
+
+/**
+ * Read file as text
+ */
+export function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target?.result as string);
+    reader.onerror = (e) => reject(e);
+    reader.readAsText(file);
+  });
+}
