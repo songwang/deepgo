@@ -385,8 +385,8 @@ const GamePlay: React.FC = () => {
       )}
 
       {/* Main board */}
-      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-        <div>
+      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div style={{ flexShrink: 0 }}>
           <GoBoard
             size={boardSize}
             stones={boardState}
@@ -399,7 +399,7 @@ const GamePlay: React.FC = () => {
           />
 
           {/* Game info - moved below board */}
-          <div style={{ marginTop: '20px' }}>
+          {/* <div style={{ marginTop: '20px' }}>
             <div>
               <strong>Handicap:</strong> {handicap} | <strong>Komi:</strong> {komi} | <strong>Move:</strong>{' '}
               {currentPosition} / {moves.length}
@@ -414,11 +414,11 @@ const GamePlay: React.FC = () => {
             {settings.show_emoji && currentMove && (
               <div style={{ fontSize: '48px' }}>{getMoveEmoji(currentMove)}</div>
             )}
-          </div>
+          </div> */}
         </div>
 
         {/* Side panel */}
-        <div style={{ flex: 1, minWidth: '300px' }}>
+        {/* <div style={{ flex: 1, minWidth: '300px' }}>
           <h3>Best Moves</h3>
           {settings.show_best_ten && bestMoves.length > 0 && (
             <div>
@@ -432,7 +432,7 @@ const GamePlay: React.FC = () => {
             </div>
           )}
 
-        </div>
+        </div> */}
       </div>
 
       {/* New game dialog */}
