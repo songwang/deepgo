@@ -42,6 +42,7 @@ const GamePlay: React.FC = () => {
   const [scoreInfo, setScoreInfo] = useState<{ score: number; winprob: number } | null>(null);
   const [isWaitingForBot, setIsWaitingForBot] = useState(false);
   const [showBestMovesOnBoard, setShowBestMovesOnBoard] = useState(false);
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
 
   // File input ref for loading SGF
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -300,16 +301,137 @@ const GamePlay: React.FC = () => {
   }, [bestMoveMarks, lastMoveMark]);
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', position: 'relative' }}>
       {/* <h1>DeepGo - Play Against KataGo</h1> */}
 
-      {/* Game controls */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <button onClick={() => setShowNewGameDialog(true)} title="New Game" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
+
+      {/* New Game button and Bot Mode toggle */}
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+        <button onClick={() => setShowNewGameDialog(true)} style={{ padding: '8px 16px' }}>
+          New Game
         </button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '14px', fontWeight: '500' }}>Bot Mode:</span>
+          <div
+            onClick={handleToggleBotMode}
+            style={{
+              position: 'relative',
+              width: '44px',
+              height: '24px',
+              backgroundColor: !settings.disable_ai ? '#4CAF50' : '#ccc',
+              borderRadius: '12px',
+              transition: 'background-color 0.3s',
+              cursor: 'pointer',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: '2px',
+                left: !settings.disable_ai ? '22px' : '2px',
+                width: '20px',
+                height: '20px',
+                backgroundColor: 'white',
+                borderRadius: '50%',
+                transition: 'left 0.3s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              }}
+            />
+          </div>
+        </label>
+      </div>
+
+
+      {/* Health indicator - shows red dot when there's an error */}
+      {(storeError || kataError) && (
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '20px',
+              right: '20px',
+              width: '12px',
+              height: '12px',
+              backgroundColor: '#dc3545',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              boxShadow: '0 0 8px rgba(220, 53, 69, 0.6)',
+            }}
+            onClick={() => setShowErrorDetails(!showErrorDetails)}
+            title={storeError || kataError || ''}
+          />
+          {showErrorDetails && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '40px',
+                right: '20px',
+                backgroundColor: 'white',
+                border: '2px solid #dc3545',
+                borderRadius: '4px',
+                padding: '12px',
+                maxWidth: '300px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                zIndex: 1000,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <strong style={{ color: '#dc3545', fontSize: '14px' }}>Error</strong>
+                <button
+                  onClick={() => setShowErrorDetails(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '18px',
+                    cursor: 'pointer',
+                    padding: '0',
+                    lineHeight: 1,
+                  }}
+                  title="Close"
+                >
+                  ×
+                </button>
+              </div>
+              <div style={{ fontSize: '13px', color: '#333' }}>{storeError || kataError}</div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Main board */}
+      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div style={{ flexShrink: 0 }}>
+          <GoBoard
+            size={boardSize}
+            stones={boardState}
+            marks={allMarks}
+            onIntersectionClick={handleIntersectionClick}
+            showHover={currentPosition === moves.length && !isWaitingForBot}
+            nextPlayer={nextPlayer}
+            width={480}
+            height={480}
+          />
+
+          {/* Game info - moved below board */}
+          {/* <div style={{ marginTop: '20px' }}>
+            <div>
+              <strong>Handicap:</strong> {handicap} | <strong>Komi:</strong> {komi} | <strong>Move:</strong>{' '}
+              {currentPosition} / {moves.length}
+              {isWaitingForBot && ' (Bot thinking...)'}
+            </div>
+            {scoreInfo && (
+              <div>
+                <strong>Score:</strong> {scoreInfo.score > 0 ? `B+${scoreInfo.score.toFixed(1)}` : `W+${Math.abs(scoreInfo.score).toFixed(1)}`} |{' '}
+                <strong>Win Probability:</strong> {scoreInfo.winprob.toFixed(1)}%
+              </div>
+            )}
+            {settings.show_emoji && currentMove && (
+              <div style={{ fontSize: '48px' }}>{getMoveEmoji(currentMove)}</div>
+            )}
+          </div> */}
+
+      {/* Game controls - below board */}
+      <div style={{ marginTop: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap', maxWidth: '480px' }}>
         <button onClick={goToStart} disabled={currentPosition === 0} title="First Move" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
             <path d="M11 3L5 8l6 5V3zM3 3v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
@@ -384,35 +506,6 @@ const GamePlay: React.FC = () => {
             <path d="M8 3v8M8 11l-3-3M8 11l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginLeft: '10px' }}>
-          <span style={{ fontSize: '14px', fontWeight: '500' }}>Bot Mode:</span>
-          <div
-            onClick={handleToggleBotMode}
-            style={{
-              position: 'relative',
-              width: '44px',
-              height: '24px',
-              backgroundColor: !settings.disable_ai ? '#4CAF50' : '#ccc',
-              borderRadius: '12px',
-              transition: 'background-color 0.3s',
-              cursor: 'pointer',
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                top: '2px',
-                left: !settings.disable_ai ? '22px' : '2px',
-                width: '20px',
-                height: '20px',
-                backgroundColor: 'white',
-                borderRadius: '50%',
-                transition: 'left 0.3s',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              }}
-            />
-          </div>
-        </label>
         <input
           ref={fileInputRef}
           type="file"
@@ -421,45 +514,6 @@ const GamePlay: React.FC = () => {
           onChange={handleLoadSgf}
         />
       </div>
-
-      {/* Error messages */}
-      {(storeError || kataError) && (
-        <div style={{ padding: '10px', backgroundColor: '#fee', border: '1px solid #fcc', marginBottom: '20px' }}>
-          Error: {storeError || kataError}
-        </div>
-      )}
-
-      {/* Main board */}
-      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        <div style={{ flexShrink: 0 }}>
-          <GoBoard
-            size={boardSize}
-            stones={boardState}
-            marks={allMarks}
-            onIntersectionClick={handleIntersectionClick}
-            showHover={currentPosition === moves.length && !isWaitingForBot}
-            nextPlayer={nextPlayer}
-            width={480}
-            height={480}
-          />
-
-          {/* Game info - moved below board */}
-          {/* <div style={{ marginTop: '20px' }}>
-            <div>
-              <strong>Handicap:</strong> {handicap} | <strong>Komi:</strong> {komi} | <strong>Move:</strong>{' '}
-              {currentPosition} / {moves.length}
-              {isWaitingForBot && ' (Bot thinking...)'}
-            </div>
-            {scoreInfo && (
-              <div>
-                <strong>Score:</strong> {scoreInfo.score > 0 ? `B+${scoreInfo.score.toFixed(1)}` : `W+${Math.abs(scoreInfo.score).toFixed(1)}`} |{' '}
-                <strong>Win Probability:</strong> {scoreInfo.winprob.toFixed(1)}%
-              </div>
-            )}
-            {settings.show_emoji && currentMove && (
-              <div style={{ fontSize: '48px' }}>{getMoveEmoji(currentMove)}</div>
-            )}
-          </div> */}
         </div>
 
         {/* Side panel */}
