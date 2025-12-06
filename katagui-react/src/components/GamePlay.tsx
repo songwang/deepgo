@@ -301,10 +301,12 @@ const GamePlay: React.FC = () => {
   }, [bestMoveMarks, lastMoveMark]);
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', position: 'relative' }}>
+    <div style={{ padding: '20px', position: 'relative' }}>
       {/* <h1>DeepGo - Play Against KataGo</h1> */}
 
 
+      {/* Centered wrapper for top controls and board */}
+      <div style={{ margin: '0 auto', width: 'fit-content' }}>
       {/* New Game button and Bot Mode toggle */}
       <div style={{ marginBottom: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
         <button onClick={() => setShowNewGameDialog(true)} style={{ padding: '8px 16px' }}>
@@ -399,7 +401,7 @@ const GamePlay: React.FC = () => {
       )}
 
       {/* Main board */}
-      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      <div>
         <div style={{ flexShrink: 0 }}>
           <GoBoard
             size={boardSize}
@@ -532,6 +534,7 @@ const GamePlay: React.FC = () => {
           )}
 
         </div> */}
+      </div>
       </div>
 
       {/* New game dialog */}
