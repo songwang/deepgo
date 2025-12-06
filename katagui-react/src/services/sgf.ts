@@ -3,6 +3,10 @@
 
 import type { Move } from '../types/game';
 
+// SGF coordinate system: A-T (skip I)
+const SGF_COORD_LETTERS = 'abcdefghijklmnopqrst';
+const HUMAN_COORD_LETTERS = 'ABCDEFGHJKLMNOPQRST';
+
 interface SgfMetadata {
   pb?: string; // Black player
   pw?: string; // White player
@@ -25,33 +29,33 @@ interface ParsedSgf {
 
 /**
  * Convert point notation to SGF coordinates
- * e.g., Q16 -> pq (SGF format uses lowercase, rows from bottom)
+ * e.g., Q16 -> 'pd' (SGF format uses lowercase, rows from top-left)
  */
 function pointToSgfCoords(move: string): string {
-  if (move === 'pass' || move === 'resign') return 'tt';
+  if (move === 'pass' || move === 'resign') return '';
 
   // Parse move like "Q16"
-  const col = move.charCodeAt(0) - 65; // A=0, B=1, etc.
-  const row = parseInt(move.substring(1));
+  const col = HUMAN_COORD_LETTERS.indexOf(move[0].toUpperCase());
+  const row = 19 - parseInt(move.substring(1)); // Human row (1-19, bottom-up) to SGF row (0-18, top-down)
 
-  const colChar = 'abcdefghijklmnopqrs'.charAt(col);
-  const rowChar = 'abcdefghijklmnopqrs'.charAt(19 - row);
+  const colChar = SGF_COORD_LETTERS[col];
+  const rowChar = SGF_COORD_LETTERS[row];
 
   return colChar + rowChar;
 }
 
 /**
  * Convert SGF coordinates to point notation
- * e.g., pq -> Q16
+ * e.g., 'pd' -> Q16
  */
 function sgfCoordsToPoint(sgfCoords: string): string {
   if (sgfCoords === 'tt' || sgfCoords === '') return 'pass';
 
-  const col = sgfCoords.charCodeAt(0) - 97; // a=0, b=1, etc.
-  const row = sgfCoords.charCodeAt(1) - 97;
+  const col = SGF_COORD_LETTERS.indexOf(sgfCoords[0]);
+  const row = SGF_COORD_LETTERS.indexOf(sgfCoords[1]);
 
-  const colChar = 'ABCDEFGHJKLMNOPQRST'.charAt(col);
-  const rowNum = 19 - row;
+  const colChar = HUMAN_COORD_LETTERS[col];
+  const rowNum = 19 - row; // SGF row (0-18, top-down) to Human row (1-19, bottom-up)
 
   return colChar + rowNum;
 }
@@ -85,18 +89,16 @@ export function moves2sgf(
     if (move.mv === 'resign') {
       result = `RE[${othercol}+R]`;
       break;
-    } else if (move.mv === 'pass') {
-      movestr += `;${color}[tt]`;
-    } else {
-      const sgfCoords = pointToSgfCoords(move.mv);
-      movestr += `;${color}[${sgfCoords}]`;
+    }
 
-      // Add AI analysis in comments if available
-      if (move.p !== undefined && move.score !== undefined) {
-        const prob = (move.p * 100).toFixed(1);
-        const score = move.score.toFixed(1);
-        movestr += `C[P:${prob} S:${score}]`;
-      }
+    const sgfCoords = pointToSgfCoords(move.mv);
+    movestr += `;${color}[${sgfCoords}]`;
+
+    // Add AI analysis in comments if available
+    if (move.p !== undefined && move.score !== undefined) {
+      const prob = (move.p * 100).toFixed(1);
+      const score = move.score.toFixed(1);
+      movestr += `C[P:${prob} S:${score}]`;
     }
     color = othercol;
   }
