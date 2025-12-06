@@ -304,41 +304,86 @@ const GamePlay: React.FC = () => {
       {/* <h1>DeepGo - Play Against KataGo</h1> */}
 
       {/* Game controls */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-        <button onClick={() => setShowNewGameDialog(true)}>New</button>
-        <button onClick={goToStart} disabled={currentPosition === 0}>
-          First
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <button onClick={() => setShowNewGameDialog(true)} title="New Game" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
         </button>
-        <button onClick={goToPreviousMove} disabled={currentPosition === 0}>
-          Prev
+        <button onClick={goToStart} disabled={currentPosition === 0} title="First Move" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M11 3L5 8l6 5V3zM3 3v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          </svg>
         </button>
-        <button onClick={goToNextMove} disabled={currentPosition === moves.length}>
-          Next
+        <button onClick={goToPreviousMove} disabled={currentPosition === 0} title="Previous Move" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M10 3L4 8l6 5V3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+          </svg>
         </button>
-        <button onClick={goToEnd} disabled={currentPosition === moves.length}>
-          Last
+        <button onClick={goToNextMove} disabled={currentPosition === moves.length} title="Next Move" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M6 3l6 5-6 5V3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+          </svg>
         </button>
-        <button onClick={removeLastMove} disabled={moves.length === 0 || currentPosition !== moves.length}>
-          Undo
+        <button onClick={goToEnd} disabled={currentPosition === moves.length} title="Last Move" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M5 3l6 5-6 5V3zM13 3v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          </svg>
         </button>
-        <button onClick={handlePass} disabled={isWaitingForBot || currentPosition !== moves.length}>
-          Pass
+        <button onClick={removeLastMove} disabled={moves.length === 0 || currentPosition !== moves.length} title="Undo" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
+            <path d="M3.5 8h9M3.5 8l3-3M3.5 8l3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M13 4.5C13 4.5 13 3 11.5 3S10 4.5 10 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
         </button>
-        <button onClick={handleGetScore}>Score</button>
-        <button onClick={requestBotMove} disabled={isWaitingForBot}>
-          AI Play
+        <button onClick={handlePass} disabled={isWaitingForBot || currentPosition !== moves.length} title="Pass" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
+            <path d="M3 8h10M10 5l3 3-3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+        <button onClick={handleGetScore} title="Score" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
+            <path d="M8 2l1.5 4.5h4.5l-3.5 2.5 1.5 4.5L8 11l-3.5 2.5 1.5-4.5L2 6.5h4.5L8 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+          </svg>
+        </button>
+        <button onClick={requestBotMove} disabled={isWaitingForBot} title="AI Play" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
+            <rect x="3" y="4" width="10" height="9" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+            <circle cx="6" cy="7" r="1" fill="currentColor"/>
+            <circle cx="10" cy="7" r="1" fill="currentColor"/>
+            <path d="M6 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <path d="M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1" stroke="currentColor" strokeWidth="1.5"/>
+          </svg>
         </button>
         <button
           onClick={handleToggleBestMoves}
           style={{
             backgroundColor: showBestMovesOnBoard ? '#4CAF50' : '#f0f0f0',
-            color: showBestMovesOnBoard ? 'white' : 'black'
+            color: showBestMovesOnBoard ? 'white' : 'black',
+            padding: '4px',
+            lineHeight: 0,
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
+          title="Best Moves"
         >
-          Best
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
+            <path d="M8 2l1.5 3 3.5.5-2.5 2.5.5 3.5L8 10l-3 1.5.5-3.5L3 5.5l3.5-.5L8 2z" fill="currentColor"/>
+          </svg>
         </button>
-        <button onClick={() => fileInputRef.current?.click()}>Load</button>
-        <button onClick={handleSaveSgf}>Save</button>
+        <button onClick={() => fileInputRef.current?.click()} title="Load SGF" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
+            <path d="M8 11V3M8 3L5 6M8 3l3 3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+        <button onClick={handleSaveSgf} title="Save SGF" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3v8M8 11l-3-3M8 11l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginLeft: '10px' }}>
           <span style={{ fontSize: '14px', fontWeight: '500' }}>Bot Mode:</span>
           <div
