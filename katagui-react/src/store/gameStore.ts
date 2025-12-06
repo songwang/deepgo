@@ -7,6 +7,7 @@ import type {
   BoardSize,
 } from '../types/game';
 import { getHandicapPoints, sgfToPoint } from '../services/coordinateUtils';
+import { applyMove } from '../services/goLogic';
 
 interface GameStore {
   // Game state
@@ -85,11 +86,13 @@ function calculateBoardState(
     if (move.mv !== 'pass' && move.mv !== 'resign') {
       const point = sgfToPoint(move.mv, boardSize);
       if (point) {
-        const key = `${point.row},${point.col}`;
-        board.set(key, currentPlayer);
-
-        // Simple capture detection (basic implementation)
-        // TODO: Implement proper liberty counting and capture logic
+        // Apply move with proper capture detection
+        const result = applyMove(board, point, currentPlayer, boardSize);
+        if (result) {
+          // Replace board with new state that includes captures
+          board.clear();
+          result.board.forEach((stone, key) => board.set(key, stone));
+        }
       }
     }
 

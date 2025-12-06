@@ -62,6 +62,10 @@ const GoBoard: React.FC<GoBoardProps> = ({
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    // Enable anti-aliasing for smooth circles
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
 
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
@@ -71,8 +75,8 @@ const GoBoard: React.FC<GoBoardProps> = ({
     ctx.fillRect(0, 0, width, height);
 
     // Draw grid lines
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth = 1.5;
 
     for (let i = 0; i < size; i++) {
       // Horizontal lines (offset by 0.5 for crisp rendering)
@@ -90,11 +94,11 @@ const GoBoard: React.FC<GoBoardProps> = ({
 
     // Draw star points
     const starPoints = getStarPoints();
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = '#3a3a3a';
     starPoints.forEach((point) => {
       const { x, y } = pointToPixel(point, cellSize);
       ctx.beginPath();
-      ctx.arc(offset + x, offset + y, cellSize * 0.08, 0, 2 * Math.PI);
+      ctx.arc(offset + x, offset + y, cellSize * 0.11, 0, 2 * Math.PI);
       ctx.fill();
     });
 

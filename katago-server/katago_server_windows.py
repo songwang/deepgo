@@ -15,7 +15,7 @@ from get_bot_app import get_bot_app
 
 # Use katago from PATH (since it's installed system-wide)
 # Use the 10-block model that's included in the repo
-katago_cmd = 'katago gtp -model g170e-b10c128-s1141046784-d204142634.bin.gz -config gtp_ahn_eigen.cfg'
+katago_cmd = 'katago gtp -model b10.bin.gz -config gtp_ahn_eigen.cfg'
 katago_gtp_bot = KataGTPBot( katago_cmd.split() )
 
 # Get an app with 'select-move/<botname>' endpoints
