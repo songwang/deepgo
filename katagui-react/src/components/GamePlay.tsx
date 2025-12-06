@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import GoBoard from './GoBoard';
 import { useGameStore } from '../store/gameStore';
 import { useKataGo } from '../hooks/useKataGo';
@@ -300,6 +300,65 @@ const GamePlay: React.FC = () => {
     return marks;
   }, [bestMoveMarks, lastMoveMark]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key) {
+        case 'ArrowLeft':
+        case 'Backspace':
+          e.preventDefault();
+          goToPreviousMove();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          goToNextMove();
+          break;
+        case 'Home':
+          e.preventDefault();
+          goToStart();
+          break;
+        case 'End':
+          e.preventDefault();
+          goToEnd();
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (!isWaitingForBot && currentPosition === moves.length && !settings.disable_ai) {
+            requestBotMove();
+          }
+          break;
+        case 'u':
+        case 'U':
+          e.preventDefault();
+          removeLastMove();
+          break;
+        case 'p':
+        case 'P':
+          e.preventDefault();
+          handlePass();
+          break;
+        case 's':
+        case 'S':
+          e.preventDefault();
+          handleGetScore();
+          break;
+        case 'b':
+        case 'B':
+          e.preventDefault();
+          handleToggleBestMoves();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [goToPreviousMove, goToNextMove, goToStart, goToEnd, requestBotMove, removeLastMove, handlePass, handleGetScore, handleToggleBestMoves, isWaitingForBot, currentPosition, moves.length, settings.disable_ai]);
+
   return (
     <div style={{ padding: '20px', position: 'relative' }}>
       {/* <h1>DeepGo - Play Against KataGo</h1> */}
@@ -434,43 +493,43 @@ const GamePlay: React.FC = () => {
 
       {/* Game controls - below board */}
       <div style={{ marginTop: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap', maxWidth: '480px' }}>
-        <button onClick={goToStart} disabled={currentPosition === 0} title="First Move" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={goToStart} disabled={currentPosition === 0} title="First Move (Home)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
             <path d="M11 3L5 8l6 5V3zM3 3v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
           </svg>
         </button>
-        <button onClick={goToPreviousMove} disabled={currentPosition === 0} title="Previous Move" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={goToPreviousMove} disabled={currentPosition === 0} title="Previous Move (← or Backspace)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
             <path d="M10 3L4 8l6 5V3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
           </svg>
         </button>
-        <button onClick={goToNextMove} disabled={currentPosition === moves.length} title="Next Move" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={goToNextMove} disabled={currentPosition === moves.length} title="Next Move (→)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
             <path d="M6 3l6 5-6 5V3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
           </svg>
         </button>
-        <button onClick={goToEnd} disabled={currentPosition === moves.length} title="Last Move" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={goToEnd} disabled={currentPosition === moves.length} title="Last Move (End)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
             <path d="M5 3l6 5-6 5V3zM13 3v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
           </svg>
         </button>
-        <button onClick={removeLastMove} disabled={moves.length === 0 || currentPosition !== moves.length} title="Undo" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={removeLastMove} disabled={moves.length === 0 || currentPosition !== moves.length} title="Undo (U)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
             <path d="M3.5 8h9M3.5 8l3-3M3.5 8l3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M13 4.5C13 4.5 13 3 11.5 3S10 4.5 10 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
         </button>
-        <button onClick={handlePass} disabled={isWaitingForBot || currentPosition !== moves.length} title="Pass" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={handlePass} disabled={isWaitingForBot || currentPosition !== moves.length} title="Pass (P)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
             <path d="M3 8h10M10 5l3 3-3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
-        <button onClick={handleGetScore} title="Score" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={handleGetScore} title="Score (S)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
             <path d="M8 2l1.5 4.5h4.5l-3.5 2.5 1.5 4.5L8 11l-3.5 2.5 1.5-4.5L2 6.5h4.5L8 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
           </svg>
         </button>
-        <button onClick={requestBotMove} disabled={isWaitingForBot} title="AI Play" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button onClick={requestBotMove} disabled={isWaitingForBot} title="AI Play (Enter)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
             <rect x="3" y="4" width="10" height="9" rx="1" stroke="currentColor" strokeWidth="1.5"/>
             <circle cx="6" cy="7" r="1" fill="currentColor"/>
@@ -492,7 +551,7 @@ const GamePlay: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'center'
           }}
-          title="Best Moves"
+          title="Best Moves (B)"
         >
           <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
             <path d="M8 2l1.5 3 3.5.5-2.5 2.5.5 3.5L8 10l-3 1.5.5-3.5L3 5.5l3.5-.5L8 2z" fill="currentColor"/>
