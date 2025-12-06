@@ -504,61 +504,73 @@ const GamePlay: React.FC = () => {
           </div> */}
 
       {/* Game controls - below board */}
-      <div style={{ marginTop: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap', maxWidth: '480px' }}>
-        <button onClick={requestBotMove} title="AI Play (Enter)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faRobot} />
-        </button>
-        <button
-          onClick={handleToggleBestMoves}
-          style={{
-            backgroundColor: showBestMovesOnBoard ? '#4CAF50' : '#f0f0f0',
-            color: showBestMovesOnBoard ? 'white' : 'black',
-            padding: '4px',
-            lineHeight: 0,
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-          title="Best Moves (B)"
-        >
-          <FontAwesomeIcon icon={faStar} />
-        </button>
-        <button onClick={handleGetScore} title="Score (S)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faChartBar} />
-        </button>
-        
-        <button onClick={goToStart} disabled={currentPosition === 0} title="First Move (Home)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faBackwardStep} />
-        </button>
-        <button onClick={() => goToMove(currentPosition - 10)} disabled={currentPosition === 0} title="Back 10 (Ctrl+←)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faBackward} />
-        </button>
-        <button onClick={goToPreviousMove} disabled={currentPosition === 0} title="Previous Move (← or Backspace)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faChevronLeft} />
-        </button>
-        <button onClick={goToNextMove} disabled={currentPosition === moves.length} title="Next Move (→)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faChevronRight} />
-        </button>
-        <button onClick={() => goToMove(currentPosition + 10)} disabled={currentPosition === moves.length} title="Next 10 (Ctrl+→)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faForward} />
-        </button>
-        <button onClick={goToEnd} disabled={currentPosition === moves.length} title="Last Move (End)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faForwardStep} />
-        </button>
-        <button onClick={removeLastMove} disabled={moves.length === 0 || currentPosition !== moves.length} title="Undo (U)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faRotateLeft} />
-        </button>
-        <button onClick={handlePass} disabled={currentPosition !== moves.length} title="Pass (P)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faArrowRight} />
-        </button>
-        <button onClick={() => fileInputRef.current?.click()} title="Load SGF" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faFolderOpen} />
-        </button>
-        <button onClick={handleSaveSgf} title="Save SGF" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <FontAwesomeIcon icon={faFloppyDisk} />
-        </button>
+      <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '480px', gap: '16px' }}>
+
+        {/* AI Group */}
+        <div style={{ display: 'flex', gap: '2px', backgroundColor: '#f0f0f0', borderRadius: '8px', padding: '3px' }}>
+          <button onClick={requestBotMove} title="AI Play (Enter)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesomeIcon icon={faRobot} size="lg" />
+          </button>
+          <button
+            onClick={handleToggleBestMoves}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: '4px',
+              cursor: 'pointer',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: showBestMovesOnBoard ? '#4CAF50' : 'black',
+            }}
+            title="Best Moves (B)"
+          >
+            <FontAwesomeIcon icon={faStar} size="lg" />
+          </button>
+          <button onClick={handleGetScore} title="Score (S)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesomeIcon icon={faChartBar} size="lg" />
+          </button>
+        </div>
+
+        {/* Navigation Group */}
+        <div style={{ display: 'flex', gap: '2px', backgroundColor: '#f0f0f0', borderRadius: '8px', padding: '3px' }}>
+          <button onClick={goToStart} disabled={currentPosition === 0} title="First Move (Home)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: currentPosition === 0 ? 0.5 : 1 }}>
+            <FontAwesomeIcon icon={faBackwardStep} size="lg" />
+          </button>
+          <button onClick={() => goToMove(currentPosition - 10)} disabled={currentPosition === 0} title="Back 10 (Ctrl+←)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: currentPosition === 0 ? 0.5 : 1 }}>
+            <FontAwesomeIcon icon={faBackward} size="lg" />
+          </button>
+          <button onClick={goToPreviousMove} disabled={currentPosition === 0} title="Previous Move (← or Backspace)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: currentPosition === 0 ? 0.5 : 1 }}>
+            <FontAwesomeIcon icon={faChevronLeft} size="lg" />
+          </button>
+          <button onClick={goToNextMove} disabled={currentPosition === moves.length} title="Next Move (→)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: currentPosition === moves.length ? 0.5 : 1 }}>
+            <FontAwesomeIcon icon={faChevronRight} size="lg" />
+          </button>
+          <button onClick={() => goToMove(currentPosition + 10)} disabled={currentPosition === moves.length} title="Next 10 (Ctrl+→)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: currentPosition === moves.length ? 0.5 : 1 }}>
+            <FontAwesomeIcon icon={faForward} size="lg" />
+          </button>
+          <button onClick={goToEnd} disabled={currentPosition === moves.length} title="Last Move (End)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: currentPosition === moves.length ? 0.5 : 1 }}>
+            <FontAwesomeIcon icon={faForwardStep} size="lg" />
+          </button>
+          <button onClick={removeLastMove} disabled={moves.length === 0 || currentPosition !== moves.length} title="Undo (U)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: (moves.length === 0 || currentPosition !== moves.length) ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: (moves.length === 0 || currentPosition !== moves.length) ? 0.5 : 1 }}>
+            <FontAwesomeIcon icon={faRotateLeft} size="lg" />
+          </button>
+          <button onClick={handlePass} disabled={currentPosition !== moves.length} title="Pass (P)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition !== moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: currentPosition !== moves.length ? 0.5 : 1 }}>
+            <FontAwesomeIcon icon={faArrowRight} size="lg" />
+          </button>
+        </div>
+
+        {/* File Group */}
+        <div style={{ display: 'flex', gap: '2px', backgroundColor: '#f0f0f0', borderRadius: '8px', padding: '3px' }}>
+          <button onClick={() => fileInputRef.current?.click()} title="Load SGF" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesomeIcon icon={faFolderOpen} size="lg" />
+          </button>
+          <button onClick={handleSaveSgf} title="Save SGF" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <FontAwesomeIcon icon={faFloppyDisk} size="lg" />
+          </button>
+        </div>
+
         <input
           ref={fileInputRef}
           type="file"
