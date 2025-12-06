@@ -97,8 +97,11 @@ const GoBoard: React.FC<GoBoardProps> = ({
     ctx.fillStyle = '#3a3a3a';
     starPoints.forEach((point) => {
       const { x, y } = pointToPixel(point, cellSize);
+      // Round to match grid line positions for precise centering
+      const centerX = Math.floor(offset + x) + 0.5;
+      const centerY = Math.floor(offset + y) + 0.5;
       ctx.beginPath();
-      ctx.arc(offset + x, offset + y, cellSize * 0.11, 0, 2 * Math.PI);
+      ctx.arc(centerX, centerY, cellSize * 0.11, 0, 2 * Math.PI);
       ctx.fill();
     });
 
