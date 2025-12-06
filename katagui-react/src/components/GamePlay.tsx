@@ -6,6 +6,8 @@ import { api } from '../services/api';
 import type { Point, Move, KataGoMove } from '../types/game';
 import { pointToSGF, sgfToPoint } from '../services/coordinateUtils';
 import { moves2sgf, downloadSgf, sgf2list, readFileAsText } from '../services/sgf';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faBackwardStep, faBackward, faChevronLeft, faChevronRight, faForward, faForwardStep, faRotateLeft, faArrowRight, faRobot, faStar, faChartBar, faFolderOpen, faFloppyDisk } from '@fortawesome/free-solid-svg-icons';
 
 const GamePlay: React.FC = () => {
   const {
@@ -22,6 +24,7 @@ const GamePlay: React.FC = () => {
     addMove,
     goToStart,
     goToEnd,
+    goToMove,
     nextMove: goToNextMove,
     previousMove: goToPreviousMove,
     removeLastMove,
@@ -312,11 +315,19 @@ const GamePlay: React.FC = () => {
         case 'ArrowLeft':
         case 'Backspace':
           e.preventDefault();
-          goToPreviousMove();
+          if (e.ctrlKey) {
+            goToMove(currentPosition - 10);
+          } else {
+            goToPreviousMove();
+          }
           break;
         case 'ArrowRight':
           e.preventDefault();
-          goToNextMove();
+          if (e.ctrlKey) {
+            goToMove(currentPosition + 10);
+          } else {
+            goToNextMove();
+          }
           break;
         case 'Home':
           e.preventDefault();
@@ -357,7 +368,8 @@ const GamePlay: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goToPreviousMove, goToNextMove, goToStart, goToEnd, requestBotMove, removeLastMove, handlePass, handleGetScore, handleToggleBestMoves, isWaitingForBot, currentPosition, moves.length, settings.disable_ai]);
+  }, [goToPreviousMove, goToNextMove, goToStart, goToEnd,
+    goToMove, goToMove, requestBotMove, removeLastMove, handlePass, handleGetScore, handleToggleBestMoves, isWaitingForBot, currentPosition, moves.length, settings.disable_ai]);
 
   return (
     <div style={{ padding: '20px', position: 'relative' }}>
@@ -493,50 +505,8 @@ const GamePlay: React.FC = () => {
 
       {/* Game controls - below board */}
       <div style={{ marginTop: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap', maxWidth: '480px' }}>
-        <button onClick={goToStart} disabled={currentPosition === 0} title="First Move (Home)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M11 3L5 8l6 5V3zM3 3v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          </svg>
-        </button>
-        <button onClick={goToPreviousMove} disabled={currentPosition === 0} title="Previous Move (← or Backspace)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M10 3L4 8l6 5V3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-          </svg>
-        </button>
-        <button onClick={goToNextMove} disabled={currentPosition === moves.length} title="Next Move (→)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M6 3l6 5-6 5V3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-          </svg>
-        </button>
-        <button onClick={goToEnd} disabled={currentPosition === moves.length} title="Last Move (End)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M5 3l6 5-6 5V3zM13 3v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          </svg>
-        </button>
-        <button onClick={removeLastMove} disabled={moves.length === 0 || currentPosition !== moves.length} title="Undo (U)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-            <path d="M3.5 8h9M3.5 8l3-3M3.5 8l3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M13 4.5C13 4.5 13 3 11.5 3S10 4.5 10 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-        </button>
-        <button onClick={handlePass} disabled={isWaitingForBot || currentPosition !== moves.length} title="Pass (P)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-            <path d="M3 8h10M10 5l3 3-3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-        <button onClick={handleGetScore} title="Score (S)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-            <path d="M8 2l1.5 4.5h4.5l-3.5 2.5 1.5 4.5L8 11l-3.5 2.5 1.5-4.5L2 6.5h4.5L8 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-          </svg>
-        </button>
-        <button onClick={requestBotMove} disabled={isWaitingForBot} title="AI Play (Enter)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-            <rect x="3" y="4" width="10" height="9" rx="1" stroke="currentColor" strokeWidth="1.5"/>
-            <circle cx="6" cy="7" r="1" fill="currentColor"/>
-            <circle cx="10" cy="7" r="1" fill="currentColor"/>
-            <path d="M6 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            <path d="M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1" stroke="currentColor" strokeWidth="1.5"/>
-          </svg>
+        <button onClick={requestBotMove} title="AI Play (Enter)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesomeIcon icon={faRobot} />
         </button>
         <button
           onClick={handleToggleBestMoves}
@@ -553,19 +523,41 @@ const GamePlay: React.FC = () => {
           }}
           title="Best Moves (B)"
         >
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-            <path d="M8 2l1.5 3 3.5.5-2.5 2.5.5 3.5L8 10l-3 1.5.5-3.5L3 5.5l3.5-.5L8 2z" fill="currentColor"/>
-          </svg>
+          <FontAwesomeIcon icon={faStar} />
+        </button>
+        <button onClick={handleGetScore} title="Score (S)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesomeIcon icon={faChartBar} />
+        </button>
+        
+        <button onClick={goToStart} disabled={currentPosition === 0} title="First Move (Home)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesomeIcon icon={faBackwardStep} />
+        </button>
+        <button onClick={() => goToMove(currentPosition - 10)} disabled={currentPosition === 0} title="Back 10 (Ctrl+←)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesomeIcon icon={faBackward} />
+        </button>
+        <button onClick={goToPreviousMove} disabled={currentPosition === 0} title="Previous Move (← or Backspace)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesomeIcon icon={faChevronLeft} />
+        </button>
+        <button onClick={goToNextMove} disabled={currentPosition === moves.length} title="Next Move (→)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesomeIcon icon={faChevronRight} />
+        </button>
+        <button onClick={() => goToMove(currentPosition + 10)} disabled={currentPosition === moves.length} title="Next 10 (Ctrl+→)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesomeIcon icon={faForward} />
+        </button>
+        <button onClick={goToEnd} disabled={currentPosition === moves.length} title="Last Move (End)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesomeIcon icon={faForwardStep} />
+        </button>
+        <button onClick={removeLastMove} disabled={moves.length === 0 || currentPosition !== moves.length} title="Undo (U)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesomeIcon icon={faRotateLeft} />
+        </button>
+        <button onClick={handlePass} disabled={currentPosition !== moves.length} title="Pass (P)" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FontAwesomeIcon icon={faArrowRight} />
         </button>
         <button onClick={() => fileInputRef.current?.click()} title="Load SGF" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-            <path d="M8 11V3M8 3L5 6M8 3l3 3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <FontAwesomeIcon icon={faFolderOpen} />
         </button>
         <button onClick={handleSaveSgf} title="Save SGF" style={{ padding: '4px', lineHeight: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="none">
-            <path d="M8 3v8M8 11l-3-3M8 11l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <FontAwesomeIcon icon={faFloppyDisk} />
         </button>
         <input
           ref={fileInputRef}
