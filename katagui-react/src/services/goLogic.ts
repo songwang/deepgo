@@ -9,11 +9,6 @@ function pointToKey(point: Point): string {
   return `${point.row},${point.col}`;
 }
 
-function keyToPoint(key: string): Point {
-  const [row, col] = key.split(',').map(Number);
-  return { row, col };
-}
-
 /**
  * Get adjacent points to a given point on the board
  */

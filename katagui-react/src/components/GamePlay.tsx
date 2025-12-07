@@ -3,7 +3,7 @@ import GoBoard from './GoBoard';
 import { useGameStore } from '../store/gameStore';
 import { useKataGo } from '../hooks/useKataGo';
 import { api } from '../services/api';
-import type { Point, Move, KataGoMove } from '../types/game';
+import type { Point, Move, KataGoMove, BoardMark } from '../types/game';
 import { pointToSGF, sgfToPoint } from '../services/coordinateUtils';
 import { moves2sgf, downloadSgf, sgf2list, readFileAsText } from '../services/sgf';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -29,7 +29,6 @@ const GamePlay: React.FC = () => {
     previousMove: goToPreviousMove,
     removeLastMove,
     getMoveList,
-    getCurrentMove,
     canPlayAt,
     setGameHash,
     setError,
@@ -42,17 +41,21 @@ const GamePlay: React.FC = () => {
   const [selectedHandicap, setSelectedHandicap] = useState(0);
   const [selectedKomi, setSelectedKomi] = useState(7.5);
   const [bestMoves, setBestMoves] = useState<KataGoMove[]>([]);
-  const [scoreInfo, setScoreInfo] = useState<{ score: number; winprob: number } | null>(null);
   const [isWaitingForBot, setIsWaitingForBot] = useState(false);
   const [showBestMovesOnBoard, setShowBestMovesOnBoard] = useState(false);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
+  const [isSelfPlaying, setIsSelfPlaying] = useState(false);
 
   // File input ref for loading SGF
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Request bot move
   const requestBotMove = useCallback(async () => {
-    if (isWaitingForBot) return;
+    console.log('requestBotMove called');
+    if (isWaitingForBot) {
+      console.log('requestBotMove returned early: isWaitingForBot is true');
+      return;
+    }
 
     setIsWaitingForBot(true);
     setShowBestMovesOnBoard(false); // Clear best move marks
@@ -71,10 +74,6 @@ const GamePlay: React.FC = () => {
 
       addMove(botMove);
       setBestMoves(response.diagnostics.best_ten);
-      setScoreInfo({
-        score: response.diagnostics.score,
-        winprob: response.diagnostics.winprob,
-      });
     }
 
     setIsWaitingForBot(false);
@@ -123,6 +122,7 @@ const GamePlay: React.FC = () => {
       setGameHash(response.game_hash);
       newGame(selectedHandicap, selectedKomi, boardSize);
       setShowNewGameDialog(false);
+      setIsSelfPlaying(false);
 
       // If handicap game, white (bot) plays first
       if (selectedHandicap >= 2 && !settings.disable_ai) {
@@ -149,14 +149,7 @@ const GamePlay: React.FC = () => {
   // Get current score
   const handleGetScore = useCallback(async () => {
     const moveList = getMoveList();
-    const response = await getScore(boardSize, moveList);
-
-    if (response) {
-      setScoreInfo({
-        score: response.score,
-        winprob: response.winprob,
-      });
-    }
+    await getScore(boardSize, moveList);
   }, [getMoveList, boardSize, getScore]);
 
   // Fetch best moves for current position
@@ -166,10 +159,6 @@ const GamePlay: React.FC = () => {
 
     if (response) {
       setBestMoves(response.diagnostics.best_ten);
-      setScoreInfo({
-        score: response.diagnostics.score,
-        winprob: response.diagnostics.winprob,
-      });
     }
   }, [getMoveList, boardSize, komi, handicap, getMove]);
 
@@ -223,13 +212,12 @@ const GamePlay: React.FC = () => {
         const prob = parseFloat(parsed.probs[i]) || 0;
         const score = parseFloat(parsed.scores[i]) || 0;
 
-        const move: Move = {
-          mv,
-          p: prob / 100, // Convert from percentage to 0-1
-          score,
-          agent: '',
-        };
-
+              const move: Move = {
+                mv,
+                p: prob / 100, // Convert from percentage to 0-1
+                score,
+                agent: 'human',
+              };
         addMove(move);
       }
 
@@ -244,27 +232,37 @@ const GamePlay: React.FC = () => {
     }
   }, [boardSize, newGame, addMove, setError]);
 
-  // Toggle bot mode
   const handleToggleBotMode = useCallback(() => {
     updateSettings({ disable_ai: !settings.disable_ai });
   }, [settings.disable_ai, updateSettings]);
 
-  // Show emoji based on win probability change
-  const getMoveEmoji = (move: Move | null): string => {
-    if (!move || !move.data) return '';
+  // Self-play loop
+  useEffect(() => {
+    console.log('Self-play effect triggered', { isSelfPlaying, isWaitingForBot, disable_ai: settings.disable_ai });
+    if (isSelfPlaying && !isWaitingForBot && !settings.disable_ai) {
+      // Stop if game is over (two consecutive passes)
+      if (
+        moves.length > 1 &&
+        moves[moves.length - 1].mv === 'pass' &&
+        moves[moves.length - 2].mv === 'pass'
+      ) {
+        console.log('Self-play stopped: Two consecutive passes.');
+        setIsSelfPlaying(false);
+        return;
+      }
 
-    const winprob = move.data.winprob;
-    if (winprob > 0.65) return '😊';
-    if (winprob > 0.55) return '🙂';
-    if (winprob > 0.45) return '😐';
-    if (winprob > 0.35) return '😟';
-    return '😞';
-  };
+      console.log('Requesting bot move for self-play...');
+      // Add a small delay to make it easier to follow
+      const timeoutId = setTimeout(() => {
+        requestBotMove();
+      }, 500);
 
-  const currentMove = getCurrentMove();
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isSelfPlaying, moves, isWaitingForBot, settings.disable_ai, requestBotMove]);
 
   // Mark the last move with a circle
-  const lastMoveMark = React.useMemo(() => {
+  const lastMoveMark = React.useMemo((): BoardMark | null => {
     if (moves.length === 0 || currentPosition === 0) return null;
 
     const lastMove = moves[currentPosition - 1];
@@ -280,7 +278,7 @@ const GamePlay: React.FC = () => {
   }, [moves, currentPosition, boardSize]);
 
   // Convert best moves to board marks (A-J letters)
-  const bestMoveMarks = React.useMemo(() => {
+  const bestMoveMarks = React.useMemo((): BoardMark[] => {
     if (!showBestMovesOnBoard || !bestMoves.length) return [];
 
     let movesToShow: KataGoMove[] = [];
@@ -294,7 +292,7 @@ const GamePlay: React.FC = () => {
     }
 
     const letters = 'ABCDEFGHIJ';
-    return movesToShow.slice(0, 10).map((move, idx) => {
+    return movesToShow.slice(0, 10).map((move, idx): BoardMark | null => {
       const point = sgfToPoint(move.move, boardSize);
       if (!point) return null;
 
@@ -303,12 +301,12 @@ const GamePlay: React.FC = () => {
         type: 'letter' as const,
         value: letters[idx],
       };
-    }).filter((mark): mark is import('../types/game').BoardMark => mark !== null);
+    }).filter((mark): mark is BoardMark => mark !== null);
   }, [showBestMovesOnBoard, bestMoves, boardSize, settings.show_best_ten]);
 
   // Combine all marks
-  const allMarks = React.useMemo(() => {
-    const marks = [...bestMoveMarks];
+  const allMarks = React.useMemo((): BoardMark[] => {
+    const marks: BoardMark[] = [...bestMoveMarks];
     if (lastMoveMark) marks.push(lastMoveMark);
     return marks;
   }, [bestMoveMarks, lastMoveMark]);
@@ -392,6 +390,12 @@ const GamePlay: React.FC = () => {
       <div style={{ marginBottom: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
         <button onClick={() => setShowNewGameDialog(true)} style={{ padding: '8px 16px' }}>
           New Game
+        </button>
+        <button onClick={() => {
+          console.log('Self-Play button clicked');
+          setIsSelfPlaying(!isSelfPlaying);
+        }} style={{ padding: '8px 16px' }}>
+          {isSelfPlaying ? 'Stop' : 'Self-Play'}
         </button>
         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
           <span style={{ fontSize: '14px', fontWeight: '500' }}>Bot Mode:</span>
