@@ -4,8 +4,8 @@ import GoBoard from './GoBoard';
 import { gameStore } from '../store/gameStoreMobx';
 import { useKataGo } from '../hooks/useKataGo';
 import { api } from '../services/api';
-import type { Point, Move, KataGoMove, BoardMark } from '../types/game';
-import { pointToSGF, sgfToPoint } from '../services/coordinateUtils';
+import type { Point, Move } from '../types/game';
+import { pointToSGF } from '../services/coordinateUtils';
 import { moves2sgf, downloadSgf, sgf2list, readFileAsText } from '../services/sgf';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBackwardStep, faBackward, faChevronLeft, faChevronRight, faForward, faForwardStep, faRotateLeft, faArrowRight, faRobot, faStar, faChartBar, faFolderOpen, faFloppyDisk } from '@fortawesome/free-solid-svg-icons';
@@ -19,11 +19,7 @@ const GamePlay: React.FC = () => {
   const [showNewGameDialog, setShowNewGameDialog] = useState(false);
   const [selectedHandicap, setSelectedHandicap] = useState(0);
   const [selectedKomi, setSelectedKomi] = useState(7.5);
-  const [bestMoves, setBestMoves] = useState<KataGoMove[]>([]);
-  const [isWaitingForBot, setIsWaitingForBot] = useState(false);
-  const [showBestMovesOnBoard, setShowBestMovesOnBoard] = useState(false);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
-  const [isSelfPlaying, setIsSelfPlaying] = useState(false);
 
   // File input ref for loading SGF
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -31,42 +27,28 @@ const GamePlay: React.FC = () => {
   // Request bot move
   const requestBotMove = useCallback(async () => {
     console.log('requestBotMove called');
-    if (isWaitingForBot) {
+    if (store.isWaitingForBot) {
       console.log('requestBotMove returned early: isWaitingForBot is true');
       return;
     }
 
-    setIsWaitingForBot(true);
-    setShowBestMovesOnBoard(false); // Clear best move marks
+    store.setWaitingForBot(true);
+    store.clearBestMoves();
     const moveList = store.getMoveList();
 
     const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
 
     if (response) {
-      const botMove: Move = {
-        mv: response.bot_move,
-        p: response.diagnostics.winprob,
-        score: response.diagnostics.score,
-        agent: 'bot',
-        data: response.diagnostics,
-      };
-
-      store.addMove(botMove);
-      setBestMoves(response.diagnostics.best_ten);
+      store.handleBotMoveResponse(response);
     }
 
-    setIsWaitingForBot(false);
-  }, [isWaitingForBot, getMove, store]);
+    store.setWaitingForBot(false);
+  }, [getMove, store]);
 
   // Handle user click on board
   const handleIntersectionClick = useCallback(
     async (point: Point) => {
-      if (isWaitingForBot) {
-        // Can't play if we're waiting for bot
-        return;
-      }
-
-      if (!store.canPlayAt(point)) {
+      if (!store.canPlayMove || !store.canPlayAt(point)) {
         return;
       }
 
@@ -76,18 +58,14 @@ const GamePlay: React.FC = () => {
         agent: 'human',
       };
 
-      store.addMove(humanMove);
-
-      // Hide best moves after user makes a move
-      setShowBestMovesOnBoard(false);
-      setBestMoves([]);
+      store.makeMove(humanMove);
 
       // Request bot response
-      if (!store.settings.disable_ai) {
+      if (store.shouldRequestBotMove()) {
         setTimeout(() => requestBotMove(), 100);
       }
     },
-    [isWaitingForBot, store, requestBotMove]
+    [store, requestBotMove]
   );
 
   // Create new game
@@ -101,7 +79,7 @@ const GamePlay: React.FC = () => {
       store.setGameHash(response.game_hash);
       store.newGame(selectedHandicap, selectedKomi, store.boardSize);
       setShowNewGameDialog(false);
-      setIsSelfPlaying(false);
+      store.setSelfPlaying(false);
 
       // If handicap game, white (bot) plays first
       if (selectedHandicap >= 2 && !store.settings.disable_ai) {
@@ -114,13 +92,8 @@ const GamePlay: React.FC = () => {
 
   // Pass move
   const handlePass = useCallback(() => {
-    const passMove: Move = {
-      mv: 'pass',
-      agent: 'human',
-    };
-    store.addMove(passMove);
-
-    if (!store.settings.disable_ai) {
+    store.makePass();
+    if (store.shouldRequestBotMove()) {
       setTimeout(() => requestBotMove(), 100);
     }
   }, [store, requestBotMove]);
@@ -131,28 +104,18 @@ const GamePlay: React.FC = () => {
     await getScore(store.boardSize, moveList);
   }, [store, getScore]);
 
-  // Fetch best moves for current position
-  const fetchBestMoves = useCallback(async () => {
-    const moveList = store.getMoveList();
-    const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
-
-    if (response) {
-      setBestMoves(response.diagnostics.best_ten);
-    }
-  }, [store, getMove]);
-
   // Handle Best button click
   const handleToggleBestMoves = useCallback(async () => {
-    const newValue = !showBestMovesOnBoard;
-    setShowBestMovesOnBoard(newValue);
+    store.toggleBestMovesOnBoard();
 
-    if (newValue) {
-      setBestMoves([]); // Clear stale data immediately
-      await fetchBestMoves();
-    } else {
-      setBestMoves([]); // Also clear when turning off
+    if (store.showBestMovesOnBoard) {
+      const moveList = store.getMoveList();
+      const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
+      if (response) {
+        store.setBestMoves(response.diagnostics.best_ten);
+      }
     }
-  }, [showBestMovesOnBoard, fetchBestMoves]);
+  }, [store, getMove]);
 
   // Save game as SGF
   const handleSaveSgf = useCallback(() => {
@@ -217,16 +180,9 @@ const GamePlay: React.FC = () => {
 
   // Self-play loop
   useEffect(() => {
-    console.log('Self-play effect triggered', { isSelfPlaying, isWaitingForBot, disable_ai: store.settings.disable_ai });
-    if (isSelfPlaying && !isWaitingForBot && !store.settings.disable_ai) {
-      // Stop if game is over (two consecutive passes)
-      if (
-        store.moves.length > 1 &&
-        store.moves[store.moves.length - 1].mv === 'pass' &&
-        store.moves[store.moves.length - 2].mv === 'pass'
-      ) {
-        console.log('Self-play stopped: Two consecutive passes.');
-        setIsSelfPlaying(false);
+    console.log('Self-play effect triggered', { isSelfPlaying: store.isSelfPlaying, isWaitingForBot: store.isWaitingForBot, disable_ai: store.settings.disable_ai });
+    if (store.shouldContinueSelfPlay()) {
+      if (store.checkSelfPlayStop()) {
         return;
       }
 
@@ -238,41 +194,8 @@ const GamePlay: React.FC = () => {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [isSelfPlaying, store.moves, isWaitingForBot, store.settings.disable_ai, requestBotMove]);
+  }, [store.isSelfPlaying, store.moves, store.isWaitingForBot, store.settings.disable_ai, requestBotMove, store]);
 
-  // Convert best moves to board marks (A-J letters)
-  const getBestMoveMarks = (): BoardMark[] => {
-    if (!showBestMovesOnBoard || !bestMoves.length) return [];
-
-    let movesToShow: KataGoMove[] = [];
-    if (store.settings.show_best_ten) {
-      movesToShow = bestMoves;
-    } else {
-      const mmax = bestMoves[0]?.psv || 0;
-      if (mmax > 0) {
-        movesToShow = bestMoves.filter(move => move.psv >= 0.05 * mmax);
-      }
-    }
-
-    const letters = 'ABCDEFGHIJ';
-    return movesToShow.slice(0, 10).map((move, idx): BoardMark | null => {
-      const point = sgfToPoint(move.move, store.boardSize);
-      if (!point) return null;
-
-      return {
-        coord: point,
-        type: 'letter' as const,
-        value: letters[idx],
-      };
-    }).filter((mark): mark is BoardMark => mark !== null);
-  };
-
-  // Combine all marks
-  const getAllMarks = (): BoardMark[] => {
-    const marks: BoardMark[] = [...getBestMoveMarks()];
-    if (store.lastMoveMark) marks.push(store.lastMoveMark);
-    return marks;
-  };
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -282,42 +205,19 @@ const GamePlay: React.FC = () => {
         return;
       }
 
+      // Handle basic navigation shortcuts via store
+      if (store.handleKeyboardShortcut(e.key, e.ctrlKey)) {
+        e.preventDefault();
+        return;
+      }
+
+      // Handle remaining shortcuts that need component functions
       switch (e.key) {
-        case 'ArrowLeft':
-        case 'Backspace':
-          e.preventDefault();
-          if (e.ctrlKey) {
-            store.goToMove(store.currentPosition - 10);
-          } else {
-            store.previousMove();
-          }
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          if (e.ctrlKey) {
-            store.goToMove(store.currentPosition + 10);
-          } else {
-            store.nextMove();
-          }
-          break;
-        case 'Home':
-          e.preventDefault();
-          store.goToStart();
-          break;
-        case 'End':
-          e.preventDefault();
-          store.goToEnd();
-          break;
         case 'Enter':
           e.preventDefault();
-          if (!isWaitingForBot && store.currentPosition === store.moves.length && !store.settings.disable_ai) {
+          if (store.shouldRequestBotMove()) {
             requestBotMove();
           }
-          break;
-        case 'u':
-        case 'U':
-          e.preventDefault();
-          store.removeLastMove();
           break;
         case 'p':
         case 'P':
@@ -339,7 +239,7 @@ const GamePlay: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [store, requestBotMove, handlePass, handleGetScore, handleToggleBestMoves, isWaitingForBot]);
+  }, [store, requestBotMove, handlePass, handleGetScore, handleToggleBestMoves]);
 
   return (
     <div style={{ padding: '20px', position: 'relative' }}>
@@ -355,9 +255,9 @@ const GamePlay: React.FC = () => {
         </button>
         <button onClick={() => {
           console.log('Self-Play button clicked');
-          setIsSelfPlaying(!isSelfPlaying);
+          store.toggleSelfPlay();
         }} style={{ padding: '8px 16px' }}>
-          {isSelfPlaying ? 'Stop' : 'Self-Play'}
+          {store.isSelfPlaying ? 'Stop' : 'Self-Play'}
         </button>
         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
           <span style={{ fontSize: '14px', fontWeight: '500' }}>Bot Mode:</span>
@@ -453,9 +353,9 @@ const GamePlay: React.FC = () => {
           <GoBoard
             size={store.boardSize}
             stones={store.boardState}
-            marks={getAllMarks()}
+            marks={store.allMarks}
             onIntersectionClick={handleIntersectionClick}
-            showHover={store.currentPosition === store.moves.length && !isWaitingForBot}
+            showHover={store.shouldShowHover}
             nextPlayer={store.nextPlayer}
             width={480}
             height={480}
@@ -466,7 +366,7 @@ const GamePlay: React.FC = () => {
             <div>
               <strong>Handicap:</strong> {store.handicap} | <strong>Komi:</strong> {store.komi} | <strong>Move:</strong>{' '}
               {store.currentPosition} / {store.moves.length}
-              {isWaitingForBot && ' (Bot thinking...)'}
+              {store.isWaitingForBot && ' (Bot thinking...)'}
             </div>
             {scoreInfo && (
               <div>
@@ -498,7 +398,7 @@ const GamePlay: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: showBestMovesOnBoard ? '#4CAF50' : '#333333',
+              color: store.showBestMovesOnBoard ? '#4CAF50' : '#333333',
             }}
             title="Best Moves (B)"
           >
