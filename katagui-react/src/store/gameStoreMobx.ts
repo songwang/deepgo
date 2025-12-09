@@ -192,6 +192,13 @@ export class GameStore {
       const point = sgfToPoint(move.move, this.boardSize);
       if (!point) return null;
 
+      // Validate that the suggested move is on an empty intersection
+      const key = `${point.row},${point.col}`;
+      if (this.boardState.has(key)) {
+        console.warn(`Skipping best move ${move.move} - intersection is occupied`);
+        return null;
+      }
+
       return {
         coord: point,
         type: 'letter' as const,

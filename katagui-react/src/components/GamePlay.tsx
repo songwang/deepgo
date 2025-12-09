@@ -106,9 +106,14 @@ const GamePlay: React.FC = () => {
 
   // Handle Best button click
   const handleToggleBestMoves = useCallback(async () => {
-    store.toggleBestMovesOnBoard();
-
     if (store.showBestMovesOnBoard) {
+      // Turning OFF - just clear everything
+      store.clearBestMoves();
+    } else {
+      // Turning ON - clear first, then fetch new data
+      store.clearBestMoves();
+      store.toggleBestMovesOnBoard();
+      
       const moveList = store.getMoveList();
       const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
       if (response) {
