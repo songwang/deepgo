@@ -1,0 +1,35 @@
+import type { Move, StoneType, Point, Settings, BoardSize, BoardMark } from '../types/game';
+export declare class GameStore {
+    gameHash: string;
+    boardSize: BoardSize;
+    handicap: number;
+    komi: number;
+    moves: Move[];
+    currentPosition: number;
+    settings: Settings;
+    isLoading: boolean;
+    error: string | null;
+    constructor();
+    get nextPlayer(): StoneType;
+    get boardState(): Map<string, StoneType>;
+    get moveList(): string[];
+    get currentMove(): Move | null;
+    get lastMoveMark(): BoardMark | null;
+    setGameHash: (hash: string) => void;
+    newGame: (handicap: number, komi: number, boardSize?: BoardSize) => void;
+    addMove: (move: Move) => void;
+    removeLastMove: () => void;
+    goToMove: (position: number) => void;
+    goToStart: () => void;
+    goToEnd: () => void;
+    nextMove: () => void;
+    previousMove: () => void;
+    updateSettings: (newSettings: Partial<Settings>) => void;
+    setLoading: (loading: boolean) => void;
+    setError: (error: string | null) => void;
+    getBoardState: () => Map<string, StoneType>;
+    getMoveList: () => string[];
+    getCurrentMove: () => Move | null;
+    canPlayAt: (point: Point) => boolean;
+}
+export declare const gameStore: GameStore;

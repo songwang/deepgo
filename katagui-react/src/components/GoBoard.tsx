@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { observer } from 'mobx-react-lite';
 import type { Point, StoneType, BoardMark } from '../types/game';
 import { pointToPixel, pixelToPoint, isValidPoint } from '../services/coordinateUtils';
 
@@ -215,7 +216,7 @@ const GoBoard: React.FC<GoBoardProps> = ({
           break;
 
         case 'letter':
-        case 'number':
+        case 'number': {
           // Draw background circle with board color to cover grid lines
           const bgRadius = cellSize * 0.4;
           ctx.fillStyle = '#DCB35C';
@@ -230,9 +231,10 @@ const GoBoard: React.FC<GoBoardProps> = ({
           ctx.textBaseline = 'middle';
           ctx.fillText(mark.value || '', offset + x, offset + y);
           break;
+        }
       }
     });
-  }, [size, stones, marks, hoverPoint, showHover, nextPlayer, cellSize, offset, width, height]);
+  }, [size, stones, marks, hoverPoint, showHover, nextPlayer, cellSize, offset, width, height, getStarPoints]);
 
   // Redraw when dependencies change
   useEffect(() => {
@@ -287,4 +289,4 @@ const GoBoard: React.FC<GoBoardProps> = ({
   );
 };
 
-export default GoBoard;
+export default observer(GoBoard);

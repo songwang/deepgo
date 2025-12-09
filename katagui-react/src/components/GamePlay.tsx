@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { observer } from 'mobx-react-lite';
 import GoBoard from './GoBoard';
-import { useGameStore } from '../store/gameStore';
+import { gameStore } from '../store/gameStoreMobx';
 import { useKataGo } from '../hooks/useKataGo';
 import { api } from '../services/api';
 import type { Point, Move, KataGoMove, BoardMark } from '../types/game';
@@ -10,30 +11,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBackwardStep, faBackward, faChevronLeft, faChevronRight, faForward, faForwardStep, faRotateLeft, faArrowRight, faRobot, faStar, faChartBar, faFolderOpen, faFloppyDisk } from '@fortawesome/free-solid-svg-icons';
 
 const GamePlay: React.FC = () => {
-  const {
-    boardSize,
-    handicap,
-    komi,
-    moves,
-    currentPosition,
-    nextPlayer,
-    boardState,
-    settings,
-    error: storeError,
-    newGame,
-    addMove,
-    goToStart,
-    goToEnd,
-    goToMove,
-    nextMove: goToNextMove,
-    previousMove: goToPreviousMove,
-    removeLastMove,
-    getMoveList,
-    canPlayAt,
-    setGameHash,
-    setError,
-    updateSettings,
-  } = useGameStore();
+  // MobX store - no destructuring needed, direct access
+  const store = gameStore;
 
   const { getMove, getScore, error: kataError } = useKataGo();
 
@@ -59,9 +38,9 @@ const GamePlay: React.FC = () => {
 
     setIsWaitingForBot(true);
     setShowBestMovesOnBoard(false); // Clear best move marks
-    const moveList = getMoveList();
+    const moveList = store.getMoveList();
 
-    const response = await getMove(boardSize, moveList, komi, handicap);
+    const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
 
     if (response) {
       const botMove: Move = {
@@ -72,12 +51,12 @@ const GamePlay: React.FC = () => {
         data: response.diagnostics,
       };
 
-      addMove(botMove);
+      store.addMove(botMove);
       setBestMoves(response.diagnostics.best_ten);
     }
 
     setIsWaitingForBot(false);
-  }, [isWaitingForBot, getMoveList, boardSize, komi, handicap, getMove, addMove]);
+  }, [isWaitingForBot, getMove, store]);
 
   // Handle user click on board
   const handleIntersectionClick = useCallback(
@@ -87,28 +66,28 @@ const GamePlay: React.FC = () => {
         return;
       }
 
-      if (!canPlayAt(point)) {
+      if (!store.canPlayAt(point)) {
         return;
       }
 
-      const sgfMove = pointToSGF(point, boardSize);
+      const sgfMove = pointToSGF(point, store.boardSize);
       const humanMove: Move = {
         mv: sgfMove,
         agent: 'human',
       };
 
-      addMove(humanMove);
+      store.addMove(humanMove);
 
       // Hide best moves after user makes a move
       setShowBestMovesOnBoard(false);
       setBestMoves([]);
 
       // Request bot response
-      if (!settings.disable_ai) {
+      if (!store.settings.disable_ai) {
         setTimeout(() => requestBotMove(), 100);
       }
     },
-    [isWaitingForBot, currentPosition, moves.length, canPlayAt, boardSize, addMove, settings.disable_ai, requestBotMove]
+    [isWaitingForBot, store, requestBotMove]
   );
 
   // Create new game
@@ -119,19 +98,19 @@ const GamePlay: React.FC = () => {
         komi: selectedKomi,
       });
 
-      setGameHash(response.game_hash);
-      newGame(selectedHandicap, selectedKomi, boardSize);
+      store.setGameHash(response.game_hash);
+      store.newGame(selectedHandicap, selectedKomi, store.boardSize);
       setShowNewGameDialog(false);
       setIsSelfPlaying(false);
 
       // If handicap game, white (bot) plays first
-      if (selectedHandicap >= 2 && !settings.disable_ai) {
+      if (selectedHandicap >= 2 && !store.settings.disable_ai) {
         setTimeout(() => requestBotMove(), 500);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create game');
+      store.setError(err instanceof Error ? err.message : 'Failed to create game');
     }
-  }, [selectedHandicap, selectedKomi, boardSize, setGameHash, newGame, settings.disable_ai, requestBotMove, setError]);
+  }, [selectedHandicap, selectedKomi, store, requestBotMove]);
 
   // Pass move
   const handlePass = useCallback(() => {
@@ -139,28 +118,28 @@ const GamePlay: React.FC = () => {
       mv: 'pass',
       agent: 'human',
     };
-    addMove(passMove);
+    store.addMove(passMove);
 
-    if (!settings.disable_ai) {
+    if (!store.settings.disable_ai) {
       setTimeout(() => requestBotMove(), 100);
     }
-  }, [addMove, settings.disable_ai, requestBotMove]);
+  }, [store, requestBotMove]);
 
   // Get current score
   const handleGetScore = useCallback(async () => {
-    const moveList = getMoveList();
-    await getScore(boardSize, moveList);
-  }, [getMoveList, boardSize, getScore]);
+    const moveList = store.getMoveList();
+    await getScore(store.boardSize, moveList);
+  }, [store, getScore]);
 
   // Fetch best moves for current position
   const fetchBestMoves = useCallback(async () => {
-    const moveList = getMoveList();
-    const response = await getMove(boardSize, moveList, komi, handicap);
+    const moveList = store.getMoveList();
+    const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
 
     if (response) {
       setBestMoves(response.diagnostics.best_ten);
     }
-  }, [getMoveList, boardSize, komi, handicap, getMove]);
+  }, [store, getMove]);
 
   // Handle Best button click
   const handleToggleBestMoves = useCallback(async () => {
@@ -177,22 +156,22 @@ const GamePlay: React.FC = () => {
 
   // Save game as SGF
   const handleSaveSgf = useCallback(() => {
-    if (moves.length === 0) {
-      setError('No moves to save');
+    if (store.moves.length === 0) {
+      store.setError('No moves to save');
       return;
     }
 
     const metadata = {
       pb: 'Black',
       pw: 'White',
-      km: komi.toString(),
+      km: store.komi.toString(),
       dt: new Date().toISOString().slice(0, 10),
     };
 
-    const sgf = moves2sgf(moves, metadata);
+    const sgf = moves2sgf(store.moves, metadata);
     const filename = `game-${new Date().getTime()}.sgf`;
     downloadSgf(filename, sgf);
-  }, [moves, komi, setError]);
+  }, [store]);
 
   // Load SGF file
   const handleLoadSgf = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -204,7 +183,7 @@ const GamePlay: React.FC = () => {
       const parsed = sgf2list(sgfText);
 
       // Start a new game with the loaded komi
-      newGame(0, parsed.komi, boardSize);
+      store.newGame(0, parsed.komi, store.boardSize);
 
       // Add all moves from the SGF
       for (let i = 0; i < parsed.moves.length; i++) {
@@ -218,7 +197,7 @@ const GamePlay: React.FC = () => {
                 score,
                 agent: 'human',
               };
-        addMove(move);
+        store.addMove(move);
       }
 
       // Reset file input
@@ -226,25 +205,25 @@ const GamePlay: React.FC = () => {
         fileInputRef.current.value = '';
       }
 
-      setError(null);
+      store.setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load SGF file');
+      store.setError(err instanceof Error ? err.message : 'Failed to load SGF file');
     }
-  }, [boardSize, newGame, addMove, setError]);
+  }, [store]);
 
   const handleToggleBotMode = useCallback(() => {
-    updateSettings({ disable_ai: !settings.disable_ai });
-  }, [settings.disable_ai, updateSettings]);
+    store.updateSettings({ disable_ai: !store.settings.disable_ai });
+  }, [store]);
 
   // Self-play loop
   useEffect(() => {
-    console.log('Self-play effect triggered', { isSelfPlaying, isWaitingForBot, disable_ai: settings.disable_ai });
-    if (isSelfPlaying && !isWaitingForBot && !settings.disable_ai) {
+    console.log('Self-play effect triggered', { isSelfPlaying, isWaitingForBot, disable_ai: store.settings.disable_ai });
+    if (isSelfPlaying && !isWaitingForBot && !store.settings.disable_ai) {
       // Stop if game is over (two consecutive passes)
       if (
-        moves.length > 1 &&
-        moves[moves.length - 1].mv === 'pass' &&
-        moves[moves.length - 2].mv === 'pass'
+        store.moves.length > 1 &&
+        store.moves[store.moves.length - 1].mv === 'pass' &&
+        store.moves[store.moves.length - 2].mv === 'pass'
       ) {
         console.log('Self-play stopped: Two consecutive passes.');
         setIsSelfPlaying(false);
@@ -259,30 +238,14 @@ const GamePlay: React.FC = () => {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [isSelfPlaying, moves, isWaitingForBot, settings.disable_ai, requestBotMove]);
-
-  // Mark the last move with a circle
-  const lastMoveMark = React.useMemo((): BoardMark | null => {
-    if (moves.length === 0 || currentPosition === 0) return null;
-
-    const lastMove = moves[currentPosition - 1];
-    if (!lastMove || lastMove.mv === 'pass' || lastMove.mv === 'resign') return null;
-
-    const point = sgfToPoint(lastMove.mv, boardSize);
-    if (!point) return null;
-
-    return {
-      coord: point,
-      type: 'circle' as const,
-    };
-  }, [moves, currentPosition, boardSize]);
+  }, [isSelfPlaying, store.moves, isWaitingForBot, store.settings.disable_ai, requestBotMove]);
 
   // Convert best moves to board marks (A-J letters)
-  const bestMoveMarks = React.useMemo((): BoardMark[] => {
+  const getBestMoveMarks = (): BoardMark[] => {
     if (!showBestMovesOnBoard || !bestMoves.length) return [];
 
     let movesToShow: KataGoMove[] = [];
-    if (settings.show_best_ten) {
+    if (store.settings.show_best_ten) {
       movesToShow = bestMoves;
     } else {
       const mmax = bestMoves[0]?.psv || 0;
@@ -293,7 +256,7 @@ const GamePlay: React.FC = () => {
 
     const letters = 'ABCDEFGHIJ';
     return movesToShow.slice(0, 10).map((move, idx): BoardMark | null => {
-      const point = sgfToPoint(move.move, boardSize);
+      const point = sgfToPoint(move.move, store.boardSize);
       if (!point) return null;
 
       return {
@@ -302,14 +265,14 @@ const GamePlay: React.FC = () => {
         value: letters[idx],
       };
     }).filter((mark): mark is BoardMark => mark !== null);
-  }, [showBestMovesOnBoard, bestMoves, boardSize, settings.show_best_ten]);
+  };
 
   // Combine all marks
-  const allMarks = React.useMemo((): BoardMark[] => {
-    const marks: BoardMark[] = [...bestMoveMarks];
-    if (lastMoveMark) marks.push(lastMoveMark);
+  const getAllMarks = (): BoardMark[] => {
+    const marks: BoardMark[] = [...getBestMoveMarks()];
+    if (store.lastMoveMark) marks.push(store.lastMoveMark);
     return marks;
-  }, [bestMoveMarks, lastMoveMark]);
+  };
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -324,37 +287,37 @@ const GamePlay: React.FC = () => {
         case 'Backspace':
           e.preventDefault();
           if (e.ctrlKey) {
-            goToMove(currentPosition - 10);
+            store.goToMove(store.currentPosition - 10);
           } else {
-            goToPreviousMove();
+            store.previousMove();
           }
           break;
         case 'ArrowRight':
           e.preventDefault();
           if (e.ctrlKey) {
-            goToMove(currentPosition + 10);
+            store.goToMove(store.currentPosition + 10);
           } else {
-            goToNextMove();
+            store.nextMove();
           }
           break;
         case 'Home':
           e.preventDefault();
-          goToStart();
+          store.goToStart();
           break;
         case 'End':
           e.preventDefault();
-          goToEnd();
+          store.goToEnd();
           break;
         case 'Enter':
           e.preventDefault();
-          if (!isWaitingForBot && currentPosition === moves.length && !settings.disable_ai) {
+          if (!isWaitingForBot && store.currentPosition === store.moves.length && !store.settings.disable_ai) {
             requestBotMove();
           }
           break;
         case 'u':
         case 'U':
           e.preventDefault();
-          removeLastMove();
+          store.removeLastMove();
           break;
         case 'p':
         case 'P':
@@ -376,8 +339,7 @@ const GamePlay: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goToPreviousMove, goToNextMove, goToStart, goToEnd,
-    goToMove, goToMove, requestBotMove, removeLastMove, handlePass, handleGetScore, handleToggleBestMoves, isWaitingForBot, currentPosition, moves.length, settings.disable_ai]);
+  }, [store, requestBotMove, handlePass, handleGetScore, handleToggleBestMoves, isWaitingForBot]);
 
   return (
     <div style={{ padding: '20px', position: 'relative' }}>
@@ -405,7 +367,7 @@ const GamePlay: React.FC = () => {
               position: 'relative',
               width: '44px',
               height: '24px',
-              backgroundColor: !settings.disable_ai ? '#4CAF50' : '#ccc',
+              backgroundColor: !store.settings.disable_ai ? '#4CAF50' : '#ccc',
               borderRadius: '12px',
               transition: 'background-color 0.3s',
               cursor: 'pointer',
@@ -415,7 +377,7 @@ const GamePlay: React.FC = () => {
               style={{
                 position: 'absolute',
                 top: '2px',
-                left: !settings.disable_ai ? '22px' : '2px',
+                left: !store.settings.disable_ai ? '22px' : '2px',
                 width: '20px',
                 height: '20px',
                 backgroundColor: 'white',
@@ -430,7 +392,7 @@ const GamePlay: React.FC = () => {
 
 
       {/* Health indicator - shows red dot when there's an error */}
-      {(storeError || kataError) && (
+      {(store.error || kataError) && (
         <>
           <div
             style={{
@@ -445,7 +407,7 @@ const GamePlay: React.FC = () => {
               boxShadow: '0 0 8px rgba(220, 53, 69, 0.6)',
             }}
             onClick={() => setShowErrorDetails(!showErrorDetails)}
-            title={storeError || kataError || ''}
+            title={store.error || kataError || ''}
           />
           {showErrorDetails && (
             <div
@@ -479,7 +441,7 @@ const GamePlay: React.FC = () => {
                   ×
                 </button>
               </div>
-              <div style={{ fontSize: '13px', color: '#333' }}>{storeError || kataError}</div>
+              <div style={{ fontSize: '13px', color: '#333' }}>{store.error || kataError}</div>
             </div>
           )}
         </>
@@ -489,12 +451,12 @@ const GamePlay: React.FC = () => {
       <div>
         <div style={{ flexShrink: 0 }}>
           <GoBoard
-            size={boardSize}
-            stones={boardState}
-            marks={allMarks}
+            size={store.boardSize}
+            stones={store.boardState}
+            marks={getAllMarks()}
             onIntersectionClick={handleIntersectionClick}
-            showHover={currentPosition === moves.length && !isWaitingForBot}
-            nextPlayer={nextPlayer}
+            showHover={store.currentPosition === store.moves.length && !isWaitingForBot}
+            nextPlayer={store.nextPlayer}
             width={480}
             height={480}
           />
@@ -502,8 +464,8 @@ const GamePlay: React.FC = () => {
           {/* Game info - moved below board */}
           {/* <div style={{ marginTop: '20px' }}>
             <div>
-              <strong>Handicap:</strong> {handicap} | <strong>Komi:</strong> {komi} | <strong>Move:</strong>{' '}
-              {currentPosition} / {moves.length}
+              <strong>Handicap:</strong> {store.handicap} | <strong>Komi:</strong> {store.komi} | <strong>Move:</strong>{' '}
+              {store.currentPosition} / {store.moves.length}
               {isWaitingForBot && ' (Bot thinking...)'}
             </div>
             {scoreInfo && (
@@ -549,28 +511,28 @@ const GamePlay: React.FC = () => {
 
         {/* Navigation Group */}
         <div style={{ display: 'flex', gap: '2px', backgroundColor: '#F5E8C7', borderRadius: '8px', padding: '3px' }}>
-          <button onClick={goToStart} disabled={currentPosition === 0} title="First Move (Home)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPosition === 0 ? '#BBB199' : '#333333' }}>
+          <button onClick={store.goToStart} disabled={store.currentPosition === 0} title="First Move (Home)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === 0 ? '#BBB199' : '#333333' }}>
             <FontAwesomeIcon icon={faBackwardStep} size="lg" />
           </button>
-          <button onClick={() => goToMove(currentPosition - 10)} disabled={currentPosition === 0} title="Back 10 (Ctrl+←)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPosition === 0 ? '#BBB199' : '#333333' }}>
+          <button onClick={() => store.goToMove(store.currentPosition - 10)} disabled={store.currentPosition === 0} title="Back 10 (Ctrl+←)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === 0 ? '#BBB199' : '#333333' }}>
             <FontAwesomeIcon icon={faBackward} size="lg" />
           </button>
-          <button onClick={goToPreviousMove} disabled={currentPosition === 0} title="Previous Move (← or Backspace)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPosition === 0 ? '#BBB199' : '#333333' }}>
+          <button onClick={store.previousMove} disabled={store.currentPosition === 0} title="Previous Move (← or Backspace)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === 0 ? '#BBB199' : '#333333' }}>
             <FontAwesomeIcon icon={faChevronLeft} size="lg" />
           </button>
-          <button onClick={goToNextMove} disabled={currentPosition === moves.length} title="Next Move (→)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPosition === moves.length ? '#BBB199' : '#333333' }}>
+          <button onClick={store.nextMove} disabled={store.currentPosition === store.moves.length} title="Next Move (→)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === store.moves.length ? '#BBB199' : '#333333' }}>
             <FontAwesomeIcon icon={faChevronRight} size="lg" />
           </button>
-          <button onClick={() => goToMove(currentPosition + 10)} disabled={currentPosition === moves.length} title="Next 10 (Ctrl+→)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPosition === moves.length ? '#BBB199' : '#333333' }}>
+          <button onClick={() => store.goToMove(store.currentPosition + 10)} disabled={store.currentPosition === store.moves.length} title="Next 10 (Ctrl+→)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === store.moves.length ? '#BBB199' : '#333333' }}>
             <FontAwesomeIcon icon={faForward} size="lg" />
           </button>
-          <button onClick={goToEnd} disabled={currentPosition === moves.length} title="Last Move (End)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition === moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPosition === moves.length ? '#BBB199' : '#333333' }}>
+          <button onClick={store.goToEnd} disabled={store.currentPosition === store.moves.length} title="Last Move (End)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === store.moves.length ? '#BBB199' : '#333333' }}>
             <FontAwesomeIcon icon={faForwardStep} size="lg" />
           </button>
-          <button onClick={removeLastMove} disabled={moves.length === 0 || currentPosition !== moves.length} title="Undo (U)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: (moves.length === 0 || currentPosition !== moves.length) ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: (moves.length === 0 || currentPosition !== moves.length) ? '#BBB199' : '#333333' }}>
+          <button onClick={store.removeLastMove} disabled={store.moves.length === 0 || store.currentPosition !== store.moves.length} title="Undo (U)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: (store.moves.length === 0 || store.currentPosition !== store.moves.length) ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: (store.moves.length === 0 || store.currentPosition !== store.moves.length) ? '#BBB199' : '#333333' }}>
             <FontAwesomeIcon icon={faRotateLeft} size="lg" />
           </button>
-          <button onClick={handlePass} disabled={currentPosition !== moves.length} title="Pass (P)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: currentPosition !== moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPosition !== moves.length ? '#BBB199' : '#333333' }}>
+          <button onClick={handlePass} disabled={store.currentPosition !== store.moves.length} title="Pass (P)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition !== store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition !== store.moves.length ? '#BBB199' : '#333333' }}>
             <FontAwesomeIcon icon={faArrowRight} size="lg" />
           </button>
         </div>
@@ -676,4 +638,4 @@ const GamePlay: React.FC = () => {
   );
 };
 
-export default GamePlay;
+export default observer(GamePlay);
