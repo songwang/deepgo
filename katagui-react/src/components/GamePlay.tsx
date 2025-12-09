@@ -60,6 +60,24 @@ const GamePlay: React.FC = () => {
 
       store.makeMove(humanMove);
 
+      // Get analysis for the human move for emoji/score display
+      if (!store.settings.disable_ai) {
+        try {
+          const moveList = store.getMoveList();
+          const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
+          if (response && response.diagnostics) {
+            // Update the human move with analysis data
+            store.updateLastMoveAnalysis(
+              response.diagnostics.winprob,
+              response.diagnostics.score,
+              response.diagnostics
+            );
+          }
+        } catch (err) {
+          console.warn('Failed to get analysis for human move:', err);
+        }
+      }
+
       // Request bot response
       if (store.shouldRequestBotMove()) {
         setTimeout(() => requestBotMove(), 100);
@@ -91,12 +109,30 @@ const GamePlay: React.FC = () => {
   }, [selectedHandicap, selectedKomi, store, requestBotMove]);
 
   // Pass move
-  const handlePass = useCallback(() => {
+  const handlePass = useCallback(async () => {
     store.makePass();
+    
+    // Get analysis for the pass move for emoji/score display
+    if (!store.settings.disable_ai) {
+      try {
+        const moveList = store.getMoveList();
+        const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
+        if (response && response.diagnostics) {
+          store.updateLastMoveAnalysis(
+            response.diagnostics.winprob,
+            response.diagnostics.score,
+            response.diagnostics
+          );
+        }
+      } catch (err) {
+        console.warn('Failed to get analysis for pass move:', err);
+      }
+    }
+    
     if (store.shouldRequestBotMove()) {
       setTimeout(() => requestBotMove(), 100);
     }
-  }, [store, requestBotMove]);
+  }, [store, requestBotMove, getMove]);
 
   // Get current score
   const handleGetScore = useCallback(async () => {
@@ -367,22 +403,35 @@ const GamePlay: React.FC = () => {
           />
 
           {/* Game info - moved below board */}
-          {/* <div style={{ marginTop: '20px' }}>
-            <div>
+          <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <div style={{ marginBottom: '10px', fontSize: '14px' }}>
               <strong>Handicap:</strong> {store.handicap} | <strong>Komi:</strong> {store.komi} | <strong>Move:</strong>{' '}
               {store.currentPosition} / {store.moves.length}
               {store.isWaitingForBot && ' (Bot thinking...)'}
             </div>
-            {scoreInfo && (
-              <div>
-                <strong>Score:</strong> {scoreInfo.score > 0 ? `B+${scoreInfo.score.toFixed(1)}` : `W+${Math.abs(scoreInfo.score).toFixed(1)}`} |{' '}
-                <strong>Win Probability:</strong> {scoreInfo.winprob.toFixed(1)}%
-              </div>
-            )}
-            {settings.show_emoji && currentMove && (
-              <div style={{ fontSize: '48px' }}>{getMoveEmoji(currentMove)}</div>
-            )}
-          </div> */}
+            {/* Fixed height container to prevent flickering */}
+            <div style={{ 
+              height: '28px', 
+              marginBottom: '10px', 
+              fontSize: '14px', 
+              color: '#333', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '8px' 
+            }}>
+              {store.scoreString && (
+                <>
+                  <span>{store.scoreString}</span>
+                  {store.moveEmoji && (
+                    <span style={{ fontSize: '18px', lineHeight: '1' }}>
+                      {store.moveEmoji}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
 
       {/* Game controls - below board */}
       <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '480px', gap: '16px' }}>

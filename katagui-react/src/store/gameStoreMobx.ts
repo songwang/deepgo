@@ -71,6 +71,9 @@ export class GameStore {
       canPlayMove: computed,
       shouldShowHover: computed,
       isGameOver: computed,
+      scoreString: computed,
+      moveEmoji: computed,
+      moveBadness: computed,
 
       // Actions
       setGameHash: action,
@@ -100,6 +103,7 @@ export class GameStore {
       startSelfPlay: action,
       stopSelfPlay: action,
       toggleSelfPlay: action,
+      updateLastMoveAnalysis: action,
     });
   }
 
@@ -225,6 +229,112 @@ export class GameStore {
     return this.moves.length > 1 &&
            this.moves[this.moves.length - 1].mv === 'pass' &&
            this.moves[this.moves.length - 2].mv === 'pass';
+  }
+
+  get scoreString(): string {
+    const currentMove = this.currentMove;
+    if (!currentMove || !currentMove.p || !currentMove.score) {
+      return '';
+    }
+
+    let p = Number(currentMove.p);
+    let score = Number(currentMove.score);
+
+    // Score formatting logic from original katagui
+    if (this.komi === Math.floor(this.komi)) { // whole number komi
+      score = Math.round(score); // 2.1 -> 2.0,  2.9 -> 3.0
+    } else { // x.5 komi
+      score = Math.sign(score) * (Math.floor(Math.abs(score)) + 0.5); // 2.1 -> 2.5 2.9 -> 2.5
+    }
+
+    let scoreStr = 'B+';
+    if (score < 0) {
+      scoreStr = 'W+';
+    }
+    scoreStr += Math.abs(score);
+
+    let result = `P(B wins): ${p.toFixed(2)}`;
+    if (typeof score !== 'undefined') {
+      result += `  ${scoreStr}`;
+    }
+    if (p === 0 && score === 0) {
+      result = '';
+    }
+    return result;
+  }
+
+  get moveEmoji(): string {
+    if (!this.settings.show_emoji || this.settings.disable_ai) {
+      return '';
+    }
+
+    const badness = this.moveBadness;
+    if (badness === null) {
+      return '';
+    }
+
+    return this.getEmojiForBadness(badness);
+  }
+
+  get moveBadness(): number | null {
+    const logit = (p: number): number => {
+      // clamp to avoid infinities
+      const pc = Math.min(0.999999, Math.max(0.000001, p));
+      return Math.log(pc / (1 - pc));
+    };
+
+    if (this.currentPosition <= 1 || !this.moves[this.currentPosition - 1] || !this.moves[this.currentPosition - 2]) {
+      return null;
+    }
+
+    const current = this.moves[this.currentPosition - 1];
+    const previous = this.moves[this.currentPosition - 2];
+
+    if (current.mv === 'pass' || previous.mv === 'pass') {
+      return null;
+    }
+
+    const currentP = Number(current.p);
+    const previousP = Number(previous.p);
+    
+    if (currentP === 0 || previousP === 0) {
+      return null; // no prob, no delta
+    }
+
+    let currentScore = Number(current.score || 0);
+    let previousScore = Number(previous.score || 0);
+    let p = currentP;
+    let pp = previousP;
+
+    // Check if we are white (odd position means white played)
+    if ((this.currentPosition - 1) % 2) { // we are white
+      p = 1.0 - p; 
+      pp = 1.0 - pp; // flip probabilities
+      currentScore = -1 * currentScore; 
+      previousScore = -1 * previousScore; // flip scores
+    }
+
+    const PL = Math.max(0, previousScore - currentScore); // points lost
+    const dL = logit(p) - logit(pp); // log-odds change
+    const LL = Math.max(0, -dL);
+    const EQP = LL / 0.12; // ~points from log-odds
+    const w = 1.0;
+    const S = PL + w * EQP;
+    return S;
+  }
+
+  private getEmojiForBadness(badness: number): string {
+    const MOVE_EMOJI = ['😍', '😐', '😓', '😡'];
+    const POINT_BINS = [2.0, 4.0, 8.0];
+    
+    let idx = MOVE_EMOJI.length - 1; // Default to worst emoji
+    for (let i = 0; i < POINT_BINS.length; i++) {
+      if (badness < POINT_BINS[i]) {
+        idx = i;
+        break;
+      }
+    }
+    return MOVE_EMOJI[idx];
   }
 
   // Actions
@@ -403,6 +513,15 @@ export class GameStore {
       this.stopSelfPlay();
     } else {
       this.startSelfPlay();
+    }
+  };
+
+  updateLastMoveAnalysis = (winprob: number, score: number, data: any): void => {
+    const lastMove = this.moves[this.moves.length - 1];
+    if (lastMove) {
+      lastMove.p = winprob;
+      lastMove.score = score;
+      lastMove.data = data;
     }
   };
 
