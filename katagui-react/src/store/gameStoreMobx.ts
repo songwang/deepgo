@@ -43,6 +43,9 @@ export class GameStore {
   // Self-play state
   isSelfPlaying: boolean = false;
 
+  // Bad moves tracking
+  badMovesThreshold: number = 3.0; // moves with badness > this are considered bad
+
   constructor() {
     makeObservable(this, {
       // Observable properties
@@ -59,6 +62,7 @@ export class GameStore {
       showBestMovesOnBoard: observable,
       isWaitingForBot: observable,
       isSelfPlaying: observable,
+      badMovesThreshold: observable,
 
       // Computed properties
       nextPlayer: computed,
@@ -74,6 +78,7 @@ export class GameStore {
       scoreString: computed,
       moveEmoji: computed,
       moveBadness: computed,
+      badMoves: computed,
 
       // Actions
       setGameHash: action,
@@ -104,6 +109,7 @@ export class GameStore {
       stopSelfPlay: action,
       toggleSelfPlay: action,
       updateLastMoveAnalysis: action,
+      setBadMovesThreshold: action,
     });
   }
 
@@ -308,6 +314,77 @@ export class GameStore {
 
     // Check if we are white (odd position means white played)
     if ((this.currentPosition - 1) % 2) { // we are white
+      p = 1.0 - p; 
+      pp = 1.0 - pp; // flip probabilities
+      currentScore = -1 * currentScore; 
+      previousScore = -1 * previousScore; // flip scores
+    }
+
+    const PL = Math.max(0, previousScore - currentScore); // points lost
+    const dL = logit(p) - logit(pp); // log-odds change
+    const LL = Math.max(0, -dL);
+    const EQP = LL / 0.12; // ~points from log-odds
+    const w = 1.0;
+    const S = PL + w * EQP;
+    return S;
+  }
+
+  get badMoves(): Array<{moveNumber: number, move: Move, badness: number}> {
+    const badMoves: Array<{moveNumber: number, move: Move, badness: number}> = [];
+    
+    for (let i = 1; i < this.moves.length; i++) { // Start from 1 since we need previous move
+      const currentMove = this.moves[i];
+      const previousMove = this.moves[i - 1];
+      
+      if (!currentMove || !previousMove) continue;
+      if (currentMove.mv === 'pass' || previousMove.mv === 'pass') continue;
+      if (!currentMove.p || !currentMove.score || !previousMove.p || !previousMove.score) continue;
+      
+      // Calculate badness for this move
+      const badness = this.calculateMoveBadness(i + 1); // moveNumber is 1-based
+      if (badness !== null && badness >= this.badMovesThreshold) {
+        badMoves.push({
+          moveNumber: i + 1, // 1-based move number
+          move: currentMove,
+          badness: badness
+        });
+      }
+    }
+    
+    return badMoves.sort((a, b) => b.badness - a.badness); // Sort by worst first
+  }
+
+  private calculateMoveBadness(moveNumber: number): number | null {
+    const logit = (p: number): number => {
+      const pc = Math.min(0.999999, Math.max(0.000001, p));
+      return Math.log(pc / (1 - pc));
+    };
+
+    if (moveNumber <= 1 || !this.moves[moveNumber - 1] || !this.moves[moveNumber - 2]) {
+      return null;
+    }
+
+    const current = this.moves[moveNumber - 1];
+    const previous = this.moves[moveNumber - 2];
+
+    if (current.mv === 'pass' || previous.mv === 'pass') {
+      return null;
+    }
+
+    const currentP = Number(current.p);
+    const previousP = Number(previous.p);
+    
+    if (currentP === 0 || previousP === 0) {
+      return null;
+    }
+
+    let currentScore = Number(current.score || 0);
+    let previousScore = Number(previous.score || 0);
+    let p = currentP;
+    let pp = previousP;
+
+    // Check if we are white (odd position means white played)
+    if ((moveNumber - 1) % 2) { // we are white
       p = 1.0 - p; 
       pp = 1.0 - pp; // flip probabilities
       currentScore = -1 * currentScore; 
@@ -541,6 +618,10 @@ export class GameStore {
   canPlayAt = (point: Point): boolean => {
     const key = `${point.row},${point.col}`;
     return !this.boardState.has(key);
+  };
+
+  setBadMovesThreshold = (threshold: number): void => {
+    this.badMovesThreshold = threshold;
   };
 }
 

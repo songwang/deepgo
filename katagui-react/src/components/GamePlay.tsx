@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import GoBoard from './GoBoard';
+import BadMovesList from './BadMovesList';
 import { gameStore } from '../store/gameStoreMobx';
 import { useKataGo } from '../hooks/useKataGo';
 import { api } from '../services/api';
@@ -219,6 +220,11 @@ const GamePlay: React.FC = () => {
     store.updateSettings({ disable_ai: !store.settings.disable_ai });
   }, [store]);
 
+  // Navigate to a specific move from bad moves list
+  const handleBadMoveClick = useCallback((moveNumber: number) => {
+    store.goToMove(moveNumber);
+  }, [store]);
+
   // Self-play loop
   useEffect(() => {
     console.log('Self-play effect triggered', { isSelfPlaying: store.isSelfPlaying, isWaitingForBot: store.isWaitingForBot, disable_ai: store.settings.disable_ai });
@@ -284,54 +290,6 @@ const GamePlay: React.FC = () => {
 
   return (
     <div style={{ padding: '20px', position: 'relative' }}>
-      {/* <h1>DeepGo - Play Against KataGo</h1> */}
-
-
-      {/* Centered wrapper for top controls and board */}
-      <div style={{ margin: '0 auto', width: 'fit-content' }}>
-      {/* New Game button and Bot Mode toggle */}
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
-        <button onClick={() => setShowNewGameDialog(true)} style={{ padding: '8px 16px' }}>
-          New Game
-        </button>
-        <button onClick={() => {
-          console.log('Self-Play button clicked');
-          store.toggleSelfPlay();
-        }} style={{ padding: '8px 16px' }}>
-          {store.isSelfPlaying ? 'Stop' : 'Self-Play'}
-        </button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-          <span style={{ fontSize: '14px', fontWeight: '500' }}>Bot Mode:</span>
-          <div
-            onClick={handleToggleBotMode}
-            style={{
-              position: 'relative',
-              width: '44px',
-              height: '24px',
-              backgroundColor: !store.settings.disable_ai ? '#4CAF50' : '#ccc',
-              borderRadius: '12px',
-              transition: 'background-color 0.3s',
-              cursor: 'pointer',
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                top: '2px',
-                left: !store.settings.disable_ai ? '22px' : '2px',
-                width: '20px',
-                height: '20px',
-                backgroundColor: 'white',
-                borderRadius: '50%',
-                transition: 'left 0.3s',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              }}
-            />
-          </div>
-        </label>
-      </div>
-
-
       {/* Health indicator - shows red dot when there's an error */}
       {(store.error || kataError) && (
         <>
@@ -388,146 +346,182 @@ const GamePlay: React.FC = () => {
         </>
       )}
 
-      {/* Main board */}
-      <div>
-        <div style={{ flexShrink: 0 }}>
-          <GoBoard
-            size={store.boardSize}
-            stones={store.boardState}
-            marks={store.allMarks}
-            onIntersectionClick={handleIntersectionClick}
-            showHover={store.shouldShowHover}
-            nextPlayer={store.nextPlayer}
-            width={480}
-            height={480}
-          />
-
-          {/* Game info - moved below board */}
-          <div style={{ marginTop: '20px', textAlign: 'center' }}>
-            <div style={{ marginBottom: '10px', fontSize: '14px' }}>
-              <strong>Handicap:</strong> {store.handicap} | <strong>Komi:</strong> {store.komi} | <strong>Move:</strong>{' '}
-              {store.currentPosition} / {store.moves.length}
-              {store.isWaitingForBot && ' (Bot thinking...)'}
-            </div>
-            {/* Fixed height container to prevent flickering */}
-            <div style={{ 
-              height: '28px', 
-              marginBottom: '10px', 
-              fontSize: '14px', 
-              color: '#333', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              gap: '8px' 
-            }}>
-              {store.scoreString && (
-                <>
-                  <span>{store.scoreString}</span>
-                  {store.moveEmoji && (
-                    <span style={{ fontSize: '18px', lineHeight: '1' }}>
-                      {store.moveEmoji}
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
+      {/* Main content wrapper */}
+      <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'flex-start' }}>
+        
+        {/* Left side - Game area */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          {/* New Game button and Bot Mode toggle */}
+          <div style={{ marginBottom: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+            <button onClick={() => setShowNewGameDialog(true)} style={{ padding: '8px 16px' }}>
+              New Game
+            </button>
+            <button onClick={() => {
+              console.log('Self-Play button clicked');
+              store.toggleSelfPlay();
+            }} style={{ padding: '8px 16px' }}>
+              {store.isSelfPlaying ? 'Stop' : 'Self-Play'}
+            </button>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <span style={{ fontSize: '14px', fontWeight: '500' }}>Bot Mode:</span>
+              <div
+                onClick={handleToggleBotMode}
+                style={{
+                  position: 'relative',
+                  width: '44px',
+                  height: '24px',
+                  backgroundColor: !store.settings.disable_ai ? '#4CAF50' : '#ccc',
+                  borderRadius: '12px',
+                  transition: 'background-color 0.3s',
+                  cursor: 'pointer',
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '2px',
+                    left: !store.settings.disable_ai ? '22px' : '2px',
+                    width: '20px',
+                    height: '20px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    transition: 'left 0.3s',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                  }}
+                />
+              </div>
+            </label>
           </div>
 
-      {/* Game controls - below board */}
-      <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '480px', gap: '16px' }}>
+          {/* Main board */}
+          <div>
+            <div style={{ flexShrink: 0 }}>
+              <GoBoard
+                size={store.boardSize}
+                stones={store.boardState}
+                marks={store.allMarks}
+                onIntersectionClick={handleIntersectionClick}
+                showHover={store.shouldShowHover}
+                nextPlayer={store.nextPlayer}
+                width={480}
+                height={480}
+              />
 
-        {/* AI Group */}
-        <div style={{ display: 'flex', gap: '2px', backgroundColor: '#F5E8C7', borderRadius: '8px', padding: '3px' }}>
-          <button onClick={requestBotMove} title="AI Play (Enter)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333333' }}>
-            <FontAwesomeIcon icon={faRobot} size="lg" />
-          </button>
-          <button
-            onClick={handleToggleBestMoves}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: '4px',
-              cursor: 'pointer',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: store.showBestMovesOnBoard ? '#4CAF50' : '#333333',
-            }}
-            title="Best Moves (B)"
-          >
-            <FontAwesomeIcon icon={faStar} size="lg" />
-          </button>
-          <button onClick={handleGetScore} title="Score (S)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333333' }}>
-            <FontAwesomeIcon icon={faChartBar} size="lg" />
-          </button>
-        </div>
+              {/* Game info - moved below board */}
+              <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                <div style={{ marginBottom: '10px', fontSize: '14px' }}>
+                  <strong>Handicap:</strong> {store.handicap} | <strong>Komi:</strong> {store.komi} | <strong>Move:</strong>{' '}
+                  {store.currentPosition} / {store.moves.length}
+                  {store.isWaitingForBot && ' (Bot thinking...)'}
+                </div>
+                {/* Fixed height container to prevent flickering */}
+                <div style={{ 
+                  height: '28px', 
+                  marginBottom: '10px', 
+                  fontSize: '14px', 
+                  color: '#333', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '8px' 
+                }}>
+                  {store.scoreString && (
+                    <>
+                      <span>{store.scoreString}</span>
+                      {store.moveEmoji && (
+                        <span style={{ fontSize: '18px', lineHeight: '1' }}>
+                          {store.moveEmoji}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
 
-        {/* Navigation Group */}
-        <div style={{ display: 'flex', gap: '2px', backgroundColor: '#F5E8C7', borderRadius: '8px', padding: '3px' }}>
-          <button onClick={store.goToStart} disabled={store.currentPosition === 0} title="First Move (Home)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === 0 ? '#BBB199' : '#333333' }}>
-            <FontAwesomeIcon icon={faBackwardStep} size="lg" />
-          </button>
-          <button onClick={() => store.goToMove(store.currentPosition - 10)} disabled={store.currentPosition === 0} title="Back 10 (Ctrl+←)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === 0 ? '#BBB199' : '#333333' }}>
-            <FontAwesomeIcon icon={faBackward} size="lg" />
-          </button>
-          <button onClick={store.previousMove} disabled={store.currentPosition === 0} title="Previous Move (← or Backspace)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === 0 ? '#BBB199' : '#333333' }}>
-            <FontAwesomeIcon icon={faChevronLeft} size="lg" />
-          </button>
-          <button onClick={store.nextMove} disabled={store.currentPosition === store.moves.length} title="Next Move (→)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === store.moves.length ? '#BBB199' : '#333333' }}>
-            <FontAwesomeIcon icon={faChevronRight} size="lg" />
-          </button>
-          <button onClick={() => store.goToMove(store.currentPosition + 10)} disabled={store.currentPosition === store.moves.length} title="Next 10 (Ctrl+→)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === store.moves.length ? '#BBB199' : '#333333' }}>
-            <FontAwesomeIcon icon={faForward} size="lg" />
-          </button>
-          <button onClick={store.goToEnd} disabled={store.currentPosition === store.moves.length} title="Last Move (End)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === store.moves.length ? '#BBB199' : '#333333' }}>
-            <FontAwesomeIcon icon={faForwardStep} size="lg" />
-          </button>
-          <button onClick={store.removeLastMove} disabled={store.moves.length === 0 || store.currentPosition !== store.moves.length} title="Undo (U)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: (store.moves.length === 0 || store.currentPosition !== store.moves.length) ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: (store.moves.length === 0 || store.currentPosition !== store.moves.length) ? '#BBB199' : '#333333' }}>
-            <FontAwesomeIcon icon={faRotateLeft} size="lg" />
-          </button>
-          <button onClick={handlePass} disabled={store.currentPosition !== store.moves.length} title="Pass (P)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition !== store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition !== store.moves.length ? '#BBB199' : '#333333' }}>
-            <FontAwesomeIcon icon={faArrowRight} size="lg" />
-          </button>
-        </div>
+              {/* Game controls - below board */}
+              <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '480px', gap: '16px' }}>
 
-        {/* File Group */}
-        <div style={{ display: 'flex', gap: '2px', backgroundColor: '#F5E8C7', borderRadius: '8px', padding: '3px' }}>
-          <button onClick={() => fileInputRef.current?.click()} title="Load SGF" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333333' }}>
-            <FontAwesomeIcon icon={faFolderOpen} size="lg" />
-          </button>
-          <button onClick={handleSaveSgf} title="Save SGF" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333333' }}>
-            <FontAwesomeIcon icon={faFloppyDisk} size="lg" />
-          </button>
-        </div>
+                {/* AI Group */}
+                <div style={{ display: 'flex', gap: '2px', backgroundColor: '#F5E8C7', borderRadius: '8px', padding: '3px' }}>
+                  <button onClick={requestBotMove} title="AI Play (Enter)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333333' }}>
+                    <FontAwesomeIcon icon={faRobot} size="lg" />
+                  </button>
+                  <button
+                    onClick={handleToggleBestMoves}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      padding: '4px',
+                      cursor: 'pointer',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: store.showBestMovesOnBoard ? '#4CAF50' : '#333333',
+                    }}
+                    title="Best Moves (B)"
+                  >
+                    <FontAwesomeIcon icon={faStar} size="lg" />
+                  </button>
+                  <button onClick={handleGetScore} title="Score (S)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333333' }}>
+                    <FontAwesomeIcon icon={faChartBar} size="lg" />
+                  </button>
+                </div>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".sgf"
-          style={{ display: 'none' }}
-          onChange={handleLoadSgf}
-        />
-      </div>
-        </div>
+                {/* Navigation Group */}
+                <div style={{ display: 'flex', gap: '2px', backgroundColor: '#F5E8C7', borderRadius: '8px', padding: '3px' }}>
+                  <button onClick={store.goToStart} disabled={store.currentPosition === 0} title="First Move (Home)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === 0 ? '#BBB199' : '#333333' }}>
+                    <FontAwesomeIcon icon={faBackwardStep} size="lg" />
+                  </button>
+                  <button onClick={() => store.goToMove(store.currentPosition - 10)} disabled={store.currentPosition === 0} title="Back 10 (Ctrl+←)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === 0 ? '#BBB199' : '#333333' }}>
+                    <FontAwesomeIcon icon={faBackward} size="lg" />
+                  </button>
+                  <button onClick={store.previousMove} disabled={store.currentPosition === 0} title="Previous Move (← or Backspace)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === 0 ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === 0 ? '#BBB199' : '#333333' }}>
+                    <FontAwesomeIcon icon={faChevronLeft} size="lg" />
+                  </button>
+                  <button onClick={store.nextMove} disabled={store.currentPosition === store.moves.length} title="Next Move (→)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === store.moves.length ? '#BBB199' : '#333333' }}>
+                    <FontAwesomeIcon icon={faChevronRight} size="lg" />
+                  </button>
+                  <button onClick={() => store.goToMove(store.currentPosition + 10)} disabled={store.currentPosition === store.moves.length} title="Next 10 (Ctrl+→)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === store.moves.length ? '#BBB199' : '#333333' }}>
+                    <FontAwesomeIcon icon={faForward} size="lg" />
+                  </button>
+                  <button onClick={store.goToEnd} disabled={store.currentPosition === store.moves.length} title="Last Move (End)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === store.moves.length ? '#BBB199' : '#333333' }}>
+                    <FontAwesomeIcon icon={faForwardStep} size="lg" />
+                  </button>
+                  <button onClick={store.removeLastMove} disabled={store.moves.length === 0 || store.currentPosition !== store.moves.length} title="Undo (U)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: (store.moves.length === 0 || store.currentPosition !== store.moves.length) ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: (store.moves.length === 0 || store.currentPosition !== store.moves.length) ? '#BBB199' : '#333333' }}>
+                    <FontAwesomeIcon icon={faRotateLeft} size="lg" />
+                  </button>
+                  <button onClick={handlePass} disabled={store.currentPosition !== store.moves.length} title="Pass (P)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition !== store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition !== store.moves.length ? '#BBB199' : '#333333' }}>
+                    <FontAwesomeIcon icon={faArrowRight} size="lg" />
+                  </button>
+                </div>
 
-        {/* Side panel */}
-        {/* <div style={{ flex: 1, minWidth: '300px' }}>
-          <h3>Best Moves</h3>
-          {settings.show_best_ten && bestMoves.length > 0 && (
-            <div>
-              <ol>
-                {bestMoves.slice(0, 10).map((move, idx) => (
-                  <li key={idx}>
-                    <strong>{move.move}</strong> - {move.psv.toFixed(1)}%
-                  </li>
-                ))}
-              </ol>
+                {/* File Group */}
+                <div style={{ display: 'flex', gap: '2px', backgroundColor: '#F5E8C7', borderRadius: '8px', padding: '3px' }}>
+                  <button onClick={() => fileInputRef.current?.click()} title="Load SGF" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333333' }}>
+                    <FontAwesomeIcon icon={faFolderOpen} size="lg" />
+                  </button>
+                  <button onClick={handleSaveSgf} title="Save SGF" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333333' }}>
+                    <FontAwesomeIcon icon={faFloppyDisk} size="lg" />
+                  </button>
+                </div>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".sgf"
+                  style={{ display: 'none' }}
+                  onChange={handleLoadSgf}
+                />
+              </div>
             </div>
-          )}
+          </div>
+        </div>
 
-        </div> */}
-      </div>
+        {/* Right side - Bad Moves panel */}
+        <div style={{ marginTop: '60px' }}> {/* Align with board area */}
+          <BadMovesList onMoveClick={handleBadMoveClick} />
+        </div>
       </div>
 
       {/* New game dialog */}
