@@ -7,12 +7,29 @@ import type { Move } from '../types/game';
 const SGF_COORD_LETTERS = 'abcdefghijklmnopqrst';
 const HUMAN_COORD_LETTERS = 'ABCDEFGHJKLMNOPQRST';
 
-interface SgfMetadata {
+export interface BadMoveData {
+  moveNumber: number;
+  move: string;
+  player: 'B' | 'W';
+  badness: number;
+  pointLoss?: number;
+  winProbLoss?: number;
+  category: 'inaccuracy' | 'mistake' | 'blunder';
+}
+
+export interface AiAnalysisData {
+  badMoves: BadMoveData[];
+  threshold: number;
+  analysisVersion: string;
+}
+
+export interface SgfMetadata {
   pb?: string; // Black player
   pw?: string; // White player
   re?: string; // Result
   km?: string; // Komi
   dt?: string; // Date
+  aiAnalysis?: AiAnalysisData; // Bad moves and other AI analysis
 }
 
 interface ParsedSgf {
@@ -25,6 +42,7 @@ interface ParsedSgf {
   komi: number;
   RE: string;
   DT: string;
+  aiAnalysis?: AiAnalysisData;
 }
 
 /**
@@ -77,6 +95,13 @@ export function moves2sgf(
   sgf += `RE[${metadata.re || ''}]\n`;
   sgf += `KM[${km}]\n`;
   sgf += `DT[${dt}]\n`;
+
+  // Add AI analysis data if available
+  if (metadata.aiAnalysis && metadata.aiAnalysis.badMoves.length > 0) {
+    const analysisJson = JSON.stringify(metadata.aiAnalysis);
+    const escapedAnalysis = analysisJson.replace(/]/g, '\\]').replace(/\[/g, '\\[');
+    sgf += `C[AI_ANALYSIS:${escapedAnalysis}]\n`;
+  }
 
   let movestr = '';
   let result = '';
@@ -165,6 +190,27 @@ function parseComment(node: string): [string, string] {
 }
 
 /**
+ * Extract AI analysis from SGF comment
+ */
+function extractAiAnalysis(sgf: string): AiAnalysisData | undefined {
+  // Look for AI_ANALYSIS comment in the header
+  const match = sgf.match(/C\[AI_ANALYSIS:([^\]]+)\]/);
+  if (!match) return undefined;
+
+  try {
+    // Unescape the brackets
+    const escapedJson = match[1];
+    const jsonStr = escapedJson.replace(/\\\[/g, '[').replace(/\\\]/g, ']');
+    const analysisData = JSON.parse(jsonStr);
+    
+    return analysisData as AiAnalysisData;
+  } catch (e) {
+    console.warn('Failed to parse AI analysis data:', e);
+    return undefined;
+  }
+}
+
+/**
  * Parse SGF string to move list
  */
 export function sgf2list(sgf: string): ParsedSgf {
@@ -175,6 +221,9 @@ export function sgf2list(sgf: string): ParsedSgf {
   const pw = getSgfTag(sgf, 'PW');
   const kmStr = getSgfTag(sgf, 'KM');
   const komi = parseFloat(kmStr) || 7.5;
+
+  // Extract AI analysis
+  const aiAnalysis = extractAiAnalysis(sgf);
 
   let winner = '';
   if (RE.toLowerCase().startsWith('w')) winner = 'w';
@@ -221,6 +270,7 @@ export function sgf2list(sgf: string): ParsedSgf {
     komi,
     RE,
     DT,
+    aiAnalysis,
   };
 }
 

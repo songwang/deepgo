@@ -171,6 +171,7 @@ const GamePlay: React.FC = () => {
       pw: 'White',
       km: store.komi.toString(),
       dt: new Date().toISOString().slice(0, 10),
+      aiAnalysis: store.badMoves.length > 0 ? store.createAiAnalysisData() : undefined,
     };
 
     const sgf = moves2sgf(store.moves, metadata);
@@ -203,6 +204,22 @@ const GamePlay: React.FC = () => {
                 agent: 'human',
               };
         store.addMove(move);
+      }
+
+      // Load bad moves if they exist in the SGF
+      if (parsed.aiAnalysis && parsed.aiAnalysis.badMoves.length > 0) {
+        const loadedBadMoves = parsed.aiAnalysis.badMoves.map(badMoveData => ({
+          moveNumber: badMoveData.moveNumber,
+          move: store.moves[badMoveData.moveNumber - 1], // Get the actual move object
+          badness: badMoveData.badness
+        })).filter(badMove => badMove.move); // Filter out invalid move references
+
+        store.setLoadedBadMoves(loadedBadMoves);
+        
+        // Set the threshold from the loaded data
+        if (parsed.aiAnalysis.threshold) {
+          store.setBadMovesThreshold(parsed.aiAnalysis.threshold);
+        }
       }
 
       // Reset file input

@@ -45,6 +45,7 @@ export class GameStore {
 
   // Bad moves tracking
   badMovesThreshold: number = 3.0; // moves with badness > this are considered bad
+  loadedBadMoves: Array<{moveNumber: number, move: Move, badness: number}> = []; // For loaded SGF files
 
   constructor() {
     makeObservable(this, {
@@ -63,6 +64,7 @@ export class GameStore {
       isWaitingForBot: observable,
       isSelfPlaying: observable,
       badMovesThreshold: observable,
+      loadedBadMoves: observable,
 
       // Computed properties
       nextPlayer: computed,
@@ -110,6 +112,7 @@ export class GameStore {
       toggleSelfPlay: action,
       updateLastMoveAnalysis: action,
       setBadMovesThreshold: action,
+      setLoadedBadMoves: action,
     });
   }
 
@@ -330,6 +333,14 @@ export class GameStore {
   }
 
   get badMoves(): Array<{moveNumber: number, move: Move, badness: number}> {
+    // If we have loaded bad moves (from SGF), use those instead of calculating
+    if (this.loadedBadMoves.length > 0) {
+      return this.loadedBadMoves
+        .filter(badMove => badMove.badness >= this.badMovesThreshold)
+        .sort((a, b) => b.badness - a.badness);
+    }
+
+    // Otherwise, calculate bad moves from current game
     const badMoves: Array<{moveNumber: number, move: Move, badness: number}> = [];
     
     for (let i = 1; i < this.moves.length; i++) { // Start from 1 since we need previous move
@@ -427,6 +438,7 @@ export class GameStore {
     this.currentPosition = 0;
     this.gameHash = '';
     this.error = null;
+    this.loadedBadMoves = []; // Clear loaded bad moves for new game
   };
 
   addMove = (move: Move): void => {
@@ -622,6 +634,47 @@ export class GameStore {
 
   setBadMovesThreshold = (threshold: number): void => {
     this.badMovesThreshold = threshold;
+  };
+
+  setLoadedBadMoves = (badMoves: Array<{moveNumber: number, move: Move, badness: number}>): void => {
+    this.loadedBadMoves = badMoves;
+  };
+
+  // Method to create AI analysis data for saving
+  createAiAnalysisData = (): import('../services/sgf').AiAnalysisData => {
+    const badMoves = this.badMoves.map(badMove => {
+      // Determine player based on move number (accounting for handicap)
+      let player: 'B' | 'W';
+      if (this.handicap >= 2) {
+        player = badMove.moveNumber % 2 === 1 ? 'W' : 'B';
+      } else {
+        player = badMove.moveNumber % 2 === 1 ? 'B' : 'W';
+      }
+
+      // Determine category based on badness
+      let category: 'inaccuracy' | 'mistake' | 'blunder';
+      if (badMove.badness >= 8.0) {
+        category = 'blunder';
+      } else if (badMove.badness >= 4.0) {
+        category = 'mistake';
+      } else {
+        category = 'inaccuracy';
+      }
+
+      return {
+        moveNumber: badMove.moveNumber,
+        move: badMove.move.mv,
+        player,
+        badness: Number(badMove.badness.toFixed(1)),
+        category
+      };
+    });
+
+    return {
+      badMoves,
+      threshold: this.badMovesThreshold,
+      analysisVersion: '1.0'
+    };
   };
 }
 
