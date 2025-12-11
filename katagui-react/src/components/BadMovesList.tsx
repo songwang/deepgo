@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { observer } from 'mobx-react-lite';
 import { gameStore } from '../store/gameStoreMobx';
 
@@ -6,8 +6,21 @@ interface BadMovesListProps {
   onMoveClick: (moveNumber: number) => void;
 }
 
+type SortOrder = 'badness' | 'moveNumber';
+
 const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
   const store = gameStore;
+  const [sortOrder, setSortOrder] = useState<SortOrder>('badness');
+
+  // Sort bad moves based on selected order
+  const sortedBadMoves = useMemo(() => {
+    const moves = [...store.badMoves];
+    if (sortOrder === 'moveNumber') {
+      return moves.sort((a, b) => a.moveNumber - b.moveNumber);
+    }
+    // Default is already sorted by badness in the store
+    return moves;
+  }, [store.badMoves, sortOrder]);
 
   const getPlayerColor = (moveNumber: number): string => {
     // Adjust for handicap games where white plays first after handicap stones
@@ -42,19 +55,32 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
       flexDirection: 'column'
     }}>
       {/* Header */}
-      <div style={{ 
+      <div style={{
         padding: '12px 16px',
         borderBottom: '1px solid #ddd',
         backgroundColor: '#fff',
         fontWeight: 'bold',
         fontSize: '14px'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ marginBottom: '8px' }}>
           <span>Bad Moves ({store.badMoves.length})</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 'normal' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span>Sort:</span>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+              style={{ fontSize: '12px', padding: '2px 4px' }}
+            >
+              <option value="badness">By Badness</option>
+              <option value="moveNumber">By Move #</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span>Threshold:</span>
-            <select 
-              value={store.badMovesThreshold} 
+            <select
+              value={store.badMovesThreshold}
               onChange={(e) => store.setBadMovesThreshold(Number(e.target.value))}
               style={{ fontSize: '12px', padding: '2px 4px' }}
             >
@@ -74,10 +100,10 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
         overflowY: 'auto',
         padding: '8px'
       }}>
-        {store.badMoves.length === 0 ? (
-          <div style={{ 
-            textAlign: 'center', 
-            color: '#6c757d', 
+        {sortedBadMoves.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            color: '#6c757d',
             marginTop: '20px',
             fontSize: '14px'
           }}>
@@ -85,13 +111,13 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
             <span style={{ fontSize: '12px' }}>Lower the threshold to see more moves</span>
           </div>
         ) : (
-          store.badMoves.map((badMove, index) => (
+          sortedBadMoves.map((badMove, index) => (
             <div
               key={`${badMove.moveNumber}-${badMove.move.mv}`}
               onClick={() => onMoveClick(badMove.moveNumber)}
               style={{
-                padding: '8px 12px',
-                marginBottom: '4px',
+                padding: '4px 8px',
+                marginBottom: '2px',
                 backgroundColor: '#fff',
                 border: '1px solid #e9ecef',
                 borderRadius: '4px',
@@ -108,10 +134,13 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <span style={{ fontWeight: 'bold' }}>
-                    {getPlayerColor(badMove.moveNumber)}{badMove.moveNumber}
+                  <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#6c757d' }}>
+                    #{badMove.moveNumber}
                   </span>
-                  <span style={{ marginLeft: '8px' }}>
+                  <span style={{ fontWeight: 'bold', marginLeft: '16px' }}>
+                    {getPlayerColor(badMove.moveNumber)}
+                  </span>
+                  <span style={{ marginLeft: '6px' }}>
                     {badMove.move.mv.toUpperCase()}
                   </span>
                 </div>
