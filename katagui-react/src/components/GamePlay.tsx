@@ -367,7 +367,7 @@ const GamePlay: React.FC = () => {
                   <strong>Handicap:</strong> {store.handicap} | <strong>Komi:</strong> {store.komi} | <strong>Move:</strong>{' '}
                   {store.currentPosition} / {store.moves.length}
                 </div>
-                {/* Fixed height container to prevent flickering */}
+                {/* Fixed height container - alternates between score info and bot status */}
                 <div style={{
                   height: '28px',
                   marginBottom: '10px',
@@ -378,15 +378,19 @@ const GamePlay: React.FC = () => {
                   justifyContent: 'center',
                   gap: '8px'
                 }}>
-                  {store.scoreString && (
-                    <>
-                      <span>{store.scoreString}</span>
-                      {store.moveEmoji && !store.isWaitingForBot && (
-                        <span style={{ fontSize: '18px', lineHeight: '1' }}>
-                          {store.moveEmoji}
-                        </span>
-                      )}
-                    </>
+                  {store.isWaitingForBot ? (
+                    <span>Bot thinking...</span>
+                  ) : (
+                    store.scoreString && (
+                      <>
+                        <span>{store.scoreString}</span>
+                        {store.moveEmoji && (
+                          <span style={{ fontSize: '18px', lineHeight: '1' }}>
+                            {store.moveEmoji}
+                          </span>
+                        )}
+                      </>
+                    )
                   )}
                 </div>
               </div>

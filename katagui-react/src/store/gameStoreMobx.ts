@@ -734,6 +734,11 @@ export class GameStore {
 
     const willRequestBotMove = this.shouldRequestBotMove();
 
+    // Set waiting state immediately if bot will respond
+    if (willRequestBotMove) {
+      this.isWaitingForBot = true;
+    }
+
     // Get analysis for the human move
     if (!this.settings.disable_ai && this.getMoveApi) {
       try {
@@ -748,6 +753,9 @@ export class GameStore {
         }
       } catch (err) {
         console.warn('Failed to get analysis for human move:', err);
+        if (willRequestBotMove) {
+          this.isWaitingForBot = false;
+        }
         return;
       }
     }
