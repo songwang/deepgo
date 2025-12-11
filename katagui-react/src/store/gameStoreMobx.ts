@@ -43,6 +43,10 @@ export class GameStore {
   showBestMovesOnBoard: boolean = false;
   isWaitingForBot: boolean = false;
 
+  // Alternative moves state (for current move, not next move)
+  alternativeMoves: KataGoMove[] = [];
+  showAlternativeMovesOnBoard: boolean = false;
+
   // Self-play state
   isSelfPlaying: boolean = false;
 
@@ -71,6 +75,8 @@ export class GameStore {
       isSelfPlaying: observable,
       badMovesThreshold: observable,
       loadedBadMoves: observable,
+      alternativeMoves: observable,
+      showAlternativeMovesOnBoard: observable,
 
       // Computed properties
       nextPlayer: computed,
@@ -79,6 +85,7 @@ export class GameStore {
       currentMove: computed,
       lastMoveMark: computed,
       bestMoveMarks: computed,
+      alternativeMoveMarks: computed,
       allMarks: computed,
       canPlayMove: computed,
       shouldShowHover: computed,
@@ -103,6 +110,9 @@ export class GameStore {
       setError: action,
       setBestMoves: action,
       toggleBestMovesOnBoard: action,
+      setAlternativeMoves: action,
+      toggleAlternativeMovesOnBoard: action,
+      clearAlternativeMoves: action,
       setWaitingForBot: action,
       setSelfPlaying: action,
       clearBestMoves: action,
@@ -230,8 +240,41 @@ export class GameStore {
     }).filter((mark): mark is BoardMark => mark !== null);
   }
 
+  get alternativeMoveMarks(): BoardMark[] {
+    if (!this.showAlternativeMovesOnBoard || !this.alternativeMoves.length) return [];
+
+    let movesToShow: KataGoMove[] = [];
+    if (this.settings.show_best_ten) {
+      movesToShow = this.alternativeMoves;
+    } else {
+      const mmax = this.alternativeMoves[0]?.psv || 0;
+      if (mmax > 0) {
+        movesToShow = this.alternativeMoves.filter(move => move.psv >= 0.05 * mmax);
+      }
+    }
+
+    const letters = 'ABCDEFGHIJ';
+    return movesToShow.slice(0, 10).map((move, idx): BoardMark | null => {
+      const point = sgfToPoint(move.move, this.boardSize);
+      if (!point) return null;
+
+      // Validate that the suggested move is on an empty intersection
+      const key = `${point.row},${point.col}`;
+      if (this.boardState.has(key)) {
+        console.warn(`Skipping alternative move ${move.move} - intersection is occupied`);
+        return null;
+      }
+
+      return {
+        coord: point,
+        type: 'letter' as const,
+        value: letters[idx],
+      };
+    }).filter((mark): mark is BoardMark => mark !== null);
+  }
+
   get allMarks(): BoardMark[] {
-    const marks: BoardMark[] = [...this.bestMoveMarks];
+    const marks: BoardMark[] = [...this.bestMoveMarks, ...this.alternativeMoveMarks];
     if (this.lastMoveMark) marks.push(this.lastMoveMark);
     return marks;
   }
@@ -541,6 +584,22 @@ export class GameStore {
     if (!this.showBestMovesOnBoard) {
       this.bestMoves = [];
     }
+  };
+
+  setAlternativeMoves = (moves: KataGoMove[]): void => {
+    this.alternativeMoves = moves;
+  };
+
+  toggleAlternativeMovesOnBoard = (): void => {
+    this.showAlternativeMovesOnBoard = !this.showAlternativeMovesOnBoard;
+    if (!this.showAlternativeMovesOnBoard) {
+      this.alternativeMoves = [];
+    }
+  };
+
+  clearAlternativeMoves = (): void => {
+    this.alternativeMoves = [];
+    this.showAlternativeMovesOnBoard = false;
   };
 
   setWaitingForBot = (waiting: boolean): void => {

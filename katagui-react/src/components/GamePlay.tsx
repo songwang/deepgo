@@ -92,11 +92,35 @@ const GamePlay: React.FC = () => {
       // Turning ON - clear first, then fetch new data
       store.clearBestMoves();
       store.toggleBestMovesOnBoard();
-      
+
       const moveList = store.getMoveList();
       const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
       if (response) {
         store.setBestMoves(response.diagnostics.best_ten);
+      }
+    }
+  }, [store, getMove]);
+
+  // Handle Alternatives button click - shows alternatives for current move
+  const handleToggleAlternativeMoves = useCallback(async () => {
+    if (store.showAlternativeMovesOnBoard) {
+      // Turning OFF - just clear everything
+      store.clearAlternativeMoves();
+    } else {
+      // Can only show alternatives if there's a current move
+      if (store.currentPosition === 0) {
+        return;
+      }
+
+      // Turning ON - clear first, then fetch alternatives for the position before current move
+      store.clearAlternativeMoves();
+      store.toggleAlternativeMovesOnBoard();
+
+      // Get move list up to the position BEFORE current move
+      const moveList = store.moves.slice(0, store.currentPosition - 1).map(m => m.mv);
+      const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
+      if (response) {
+        store.setAlternativeMoves(response.diagnostics.best_ten);
       }
     }
   }, [store, getMove]);
@@ -235,12 +259,17 @@ const GamePlay: React.FC = () => {
           e.preventDefault();
           handleToggleBestMoves();
           break;
+        case 'a':
+        case 'A':
+          e.preventDefault();
+          handleToggleAlternativeMoves();
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [store, handlePass, handleGetScore, handleToggleBestMoves]);
+  }, [store, handlePass, handleGetScore, handleToggleBestMoves, handleToggleAlternativeMoves]);
 
   return (
     <div style={{ padding: '20px', position: 'relative' }}>
@@ -416,9 +445,29 @@ const GamePlay: React.FC = () => {
                       justifyContent: 'center',
                       color: store.showBestMovesOnBoard ? '#4CAF50' : '#333333',
                     }}
-                    title="Best Moves (B)"
+                    title="Best Next Moves (B)"
                   >
                     <FontAwesomeIcon icon={faStar} size="lg" />
+                  </button>
+                  <button
+                    onClick={handleToggleAlternativeMoves}
+                    disabled={store.currentPosition === 0}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      padding: '4px',
+                      cursor: store.currentPosition === 0 ? 'not-allowed' : 'pointer',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: store.showAlternativeMovesOnBoard ? '#4CAF50' : (store.currentPosition === 0 ? '#BBB199' : '#333333'),
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}
+                    title="Alternative Moves for Current Position (A)"
+                  >
+                    ALT
                   </button>
                   <button onClick={handleGetScore} title="Score (S)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333333' }}>
                     <FontAwesomeIcon icon={faChartBar} size="lg" />
