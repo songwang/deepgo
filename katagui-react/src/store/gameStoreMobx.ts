@@ -1,4 +1,4 @@
-import { makeObservable, observable, computed, action } from 'mobx';
+import { makeObservable, observable, computed, action, reaction } from 'mobx';
 import type {
   Move,
   StoneType,
@@ -10,6 +10,9 @@ import type {
 } from '../types/game';
 import { getHandicapPoints, sgfToPoint } from '../services/coordinateUtils';
 import { applyMove } from '../services/goLogic';
+
+// Type for the API functions that the store will use
+type GetMoveFunction = (boardSize: number, moves: string[], komi: number, handicap: number) => Promise<any>;
 
 const DEFAULT_SETTINGS: Settings = {
   show_emoji: true,
@@ -34,18 +37,21 @@ export class GameStore {
   settings: Settings = DEFAULT_SETTINGS;
   isLoading: boolean = false;
   error: string | null = null;
-  
+
   // Best moves state
   bestMoves: KataGoMove[] = [];
   showBestMovesOnBoard: boolean = false;
   isWaitingForBot: boolean = false;
-  
+
   // Self-play state
   isSelfPlaying: boolean = false;
 
   // Bad moves tracking
   badMovesThreshold: number = 3.0; // moves with badness > this are considered bad
   loadedBadMoves: Array<{moveNumber: number, move: Move, badness: number}> = []; // For loaded SGF files
+
+  // API function reference (injected from component)
+  private getMoveApi: GetMoveFunction | null = null;
 
   constructor() {
     makeObservable(this, {
@@ -113,6 +119,10 @@ export class GameStore {
       updateLastMoveAnalysis: action,
       setBadMovesThreshold: action,
       setLoadedBadMoves: action,
+      setGetMoveApi: action,
+      playHumanMove: action,
+      playHumanPass: action,
+      requestBotMove: action,
     });
   }
 
@@ -277,17 +287,26 @@ export class GameStore {
       return '';
     }
 
-    const badness = this.moveBadness;
-    if (badness === null) {
-      return '';
+    // Show emoji for the most recent human move up to current position
+    // This way, emoji persists even when viewing bot's response
+    for (let i = this.currentPosition - 1; i >= 0; i--) {
+      const move = this.moves[i];
+      if (move && move.agent === 'human') {
+        // Calculate badness for this human move
+        const badness = this.calculateMoveBadness(i + 1); // moveNumber is 1-based
+        if (badness !== null) {
+          return this.getEmojiForBadness(badness);
+        }
+        break; // Only check the most recent human move
+      }
     }
 
-    return this.getEmojiForBadness(badness);
+    return '';
   }
 
   get moveBadness(): number | null {
+    // Use exact original katagui logic
     const logit = (p: number): number => {
-      // clamp to avoid infinities
       const pc = Math.min(0.999999, Math.max(0.000001, p));
       return Math.log(pc / (1 - pc));
     };
@@ -303,28 +322,41 @@ export class GameStore {
       return null;
     }
 
-    const currentP = Number(current.p);
-    const previousP = Number(previous.p);
-    
-    if (currentP === 0 || previousP === 0) {
+    // Only calculate badness for human moves, not bot moves
+    if (current.agent !== 'human') {
+      return null;
+    }
+
+    // Original validation logic
+    const p = current.p;
+    const pp = previous.p;
+    if (p === '0.00' || pp === '0.00' || !p || !pp) {
       return null; // no prob, no delta
     }
 
-    let currentScore = Number(current.score || 0);
-    let previousScore = Number(previous.score || 0);
-    let p = currentP;
-    let pp = previousP;
+    const s = current.score;
+    const ps = previous.score;
 
-    // Check if we are white (odd position means white played)
-    if ((this.currentPosition - 1) % 2) { // we are white
-      p = 1.0 - p; 
-      pp = 1.0 - pp; // flip probabilities
-      currentScore = -1 * currentScore; 
-      previousScore = -1 * previousScore; // flip scores
+    let pNum = Number(p);
+    let ppNum = Number(pp);
+    let sNum = Number(s);
+    let psNum = Number(ps);
+
+    // Check if we are white
+    const moveIndex = this.currentPosition - 1;
+    let isWhite = moveIndex % 2 === 1;
+    if (this.handicap >= 2) {
+      isWhite = !isWhite;
+    }
+    if (isWhite) { // we are white
+      pNum = 1.0 - pNum; 
+      ppNum = 1.0 - ppNum; // flip probabilities
+      sNum = -1 * sNum; 
+      psNum = -1 * psNum; // flip scores
     }
 
-    const PL = Math.max(0, previousScore - currentScore); // points lost
-    const dL = logit(p) - logit(pp); // log-odds change
+    const PL = Math.max(0, psNum - sNum); // points lost
+    const dL = logit(pNum) - logit(ppNum); // log-odds change
     const LL = Math.max(0, -dL);
     const EQP = LL / 0.12; // ~points from log-odds
     const w = 1.0;
@@ -351,8 +383,12 @@ export class GameStore {
       if (currentMove.mv === 'pass' || previousMove.mv === 'pass') continue;
       if (!currentMove.p || !currentMove.score || !previousMove.p || !previousMove.score) continue;
       
+      // Only calculate badness for HUMAN moves, not bot moves
+      if (currentMove.agent !== 'human') continue;
+      
       // Calculate badness for this move
       const badness = this.calculateMoveBadness(i + 1); // moveNumber is 1-based
+      
       if (badness !== null && badness >= this.badMovesThreshold) {
         badMoves.push({
           moveNumber: i + 1, // 1-based move number
@@ -366,6 +402,7 @@ export class GameStore {
   }
 
   private calculateMoveBadness(moveNumber: number): number | null {
+    // Use exact original katagui logic
     const logit = (p: number): number => {
       const pc = Math.min(0.999999, Math.max(0.000001, p));
       return Math.log(pc / (1 - pc));
@@ -382,28 +419,36 @@ export class GameStore {
       return null;
     }
 
-    const currentP = Number(current.p);
-    const previousP = Number(previous.p);
-    
-    if (currentP === 0 || previousP === 0) {
-      return null;
+    // Original validation logic
+    const p = current.p;
+    const pp = previous.p;
+    if (p === '0.00' || pp === '0.00' || !p || !pp) {
+      return null; // no prob, no delta
     }
 
-    let currentScore = Number(current.score || 0);
-    let previousScore = Number(previous.score || 0);
-    let p = currentP;
-    let pp = previousP;
+    const s = current.score;
+    const ps = previous.score;
 
-    // Check if we are white (odd position means white played)
-    if ((moveNumber - 1) % 2) { // we are white
-      p = 1.0 - p; 
-      pp = 1.0 - pp; // flip probabilities
-      currentScore = -1 * currentScore; 
-      previousScore = -1 * previousScore; // flip scores
+    let pNum = Number(p);
+    let ppNum = Number(pp);
+    let sNum = Number(s);
+    let psNum = Number(ps);
+
+    // Check if we are white
+    const moveIndex = moveNumber - 1;
+    let isWhite = moveIndex % 2 === 1;
+    if (this.handicap >= 2) {
+      isWhite = !isWhite;
+    }
+    if (isWhite) { // we are white
+      pNum = 1.0 - pNum; 
+      ppNum = 1.0 - ppNum; // flip probabilities
+      sNum = -1 * sNum; 
+      psNum = -1 * psNum; // flip scores
     }
 
-    const PL = Math.max(0, previousScore - currentScore); // points lost
-    const dL = logit(p) - logit(pp); // log-odds change
+    const PL = Math.max(0, psNum - sNum); // points lost
+    const dL = logit(pNum) - logit(ppNum); // log-odds change
     const LL = Math.max(0, -dL);
     const EQP = LL / 0.12; // ~points from log-odds
     const w = 1.0;
@@ -675,6 +720,77 @@ export class GameStore {
       threshold: this.badMovesThreshold,
       analysisVersion: '1.0'
     };
+  };
+
+  // Set the API function (dependency injection)
+  setGetMoveApi = (getMoveApi: GetMoveFunction): void => {
+    this.getMoveApi = getMoveApi;
+  };
+
+  // Play a human move with automatic analysis and bot response
+  playHumanMove = async (move: Move): Promise<void> => {
+    // Add the move
+    this.makeMove(move);
+
+    const willRequestBotMove = this.shouldRequestBotMove();
+
+    // Get analysis for the human move
+    if (!this.settings.disable_ai && this.getMoveApi) {
+      try {
+        const moveList = this.getMoveList();
+        const response = await this.getMoveApi(this.boardSize, moveList, this.komi, this.handicap);
+        if (response && response.diagnostics) {
+          this.updateLastMoveAnalysis(
+            response.diagnostics.winprob,
+            response.diagnostics.score,
+            response.diagnostics
+          );
+        }
+      } catch (err) {
+        console.warn('Failed to get analysis for human move:', err);
+        return;
+      }
+    }
+
+    // Request bot move if needed (don't await - let it run in background)
+    if (willRequestBotMove) {
+      this.requestBotMove();
+    }
+  };
+
+  // Play a human pass move
+  playHumanPass = async (): Promise<void> => {
+    const passMove: Move = {
+      mv: 'pass',
+      agent: 'human',
+    };
+    await this.playHumanMove(passMove);
+  };
+
+  // Request bot move (can be called from playHumanMove or externally)
+  requestBotMove = async (): Promise<void> => {
+    if (!this.getMoveApi) {
+      console.warn('getMoveApi not set');
+      return;
+    }
+
+    // Set waiting state (safe to call even if already true)
+    this.isWaitingForBot = true;
+    this.clearBestMoves();
+
+    try {
+      const moveList = this.getMoveList();
+      const response = await this.getMoveApi(this.boardSize, moveList, this.komi, this.handicap);
+
+      if (response) {
+        this.handleBotMoveResponse(response);
+      }
+    } catch (err) {
+      console.error('Bot move failed:', err);
+      this.setError(err instanceof Error ? err.message : 'Bot move failed');
+    } finally {
+      this.isWaitingForBot = false;
+    }
   };
 }
 

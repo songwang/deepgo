@@ -25,25 +25,9 @@ const GamePlay: React.FC = () => {
   // File input ref for loading SGF
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Request bot move
-  const requestBotMove = useCallback(async () => {
-    console.log('requestBotMove called');
-    if (store.isWaitingForBot) {
-      console.log('requestBotMove returned early: isWaitingForBot is true');
-      return;
-    }
-
-    store.setWaitingForBot(true);
-    store.clearBestMoves();
-    const moveList = store.getMoveList();
-
-    const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
-
-    if (response) {
-      store.handleBotMoveResponse(response);
-    }
-
-    store.setWaitingForBot(false);
+  // Inject API function into store on mount
+  useEffect(() => {
+    store.setGetMoveApi(getMove);
   }, [getMove, store]);
 
   // Handle user click on board
@@ -59,32 +43,10 @@ const GamePlay: React.FC = () => {
         agent: 'human',
       };
 
-      store.makeMove(humanMove);
-
-      // Get analysis for the human move for emoji/score display
-      if (!store.settings.disable_ai) {
-        try {
-          const moveList = store.getMoveList();
-          const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
-          if (response && response.diagnostics) {
-            // Update the human move with analysis data
-            store.updateLastMoveAnalysis(
-              response.diagnostics.winprob,
-              response.diagnostics.score,
-              response.diagnostics
-            );
-          }
-        } catch (err) {
-          console.warn('Failed to get analysis for human move:', err);
-        }
-      }
-
-      // Request bot response
-      if (store.shouldRequestBotMove()) {
-        setTimeout(() => requestBotMove(), 100);
-      }
+      // Store handles everything: move, analysis, and bot response
+      await store.playHumanMove(humanMove);
     },
-    [store, requestBotMove]
+    [store]
   );
 
   // Create new game
@@ -102,38 +64,18 @@ const GamePlay: React.FC = () => {
 
       // If handicap game, white (bot) plays first
       if (selectedHandicap >= 2 && !store.settings.disable_ai) {
-        setTimeout(() => requestBotMove(), 500);
+        store.requestBotMove();
       }
     } catch (err) {
       store.setError(err instanceof Error ? err.message : 'Failed to create game');
     }
-  }, [selectedHandicap, selectedKomi, store, requestBotMove]);
+  }, [selectedHandicap, selectedKomi, store]);
 
   // Pass move
   const handlePass = useCallback(async () => {
-    store.makePass();
-    
-    // Get analysis for the pass move for emoji/score display
-    if (!store.settings.disable_ai) {
-      try {
-        const moveList = store.getMoveList();
-        const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
-        if (response && response.diagnostics) {
-          store.updateLastMoveAnalysis(
-            response.diagnostics.winprob,
-            response.diagnostics.score,
-            response.diagnostics
-          );
-        }
-      } catch (err) {
-        console.warn('Failed to get analysis for pass move:', err);
-      }
-    }
-    
-    if (store.shouldRequestBotMove()) {
-      setTimeout(() => requestBotMove(), 100);
-    }
-  }, [store, requestBotMove, getMove]);
+    // Store handles everything: move, analysis, and bot response
+    await store.playHumanPass();
+  }, [store]);
 
   // Get current score
   const handleGetScore = useCallback(async () => {
@@ -251,14 +193,9 @@ const GamePlay: React.FC = () => {
       }
 
       console.log('Requesting bot move for self-play...');
-      // Add a small delay to make it easier to follow
-      const timeoutId = setTimeout(() => {
-        requestBotMove();
-      }, 500);
-
-      return () => clearTimeout(timeoutId);
+      store.requestBotMove();
     }
-  }, [store.isSelfPlaying, store.moves, store.isWaitingForBot, store.settings.disable_ai, requestBotMove, store]);
+  }, [store.isSelfPlaying, store.moves, store.isWaitingForBot, store.settings.disable_ai, store]);
 
 
   // Keyboard shortcuts
@@ -280,7 +217,7 @@ const GamePlay: React.FC = () => {
         case 'Enter':
           e.preventDefault();
           if (store.shouldRequestBotMove()) {
-            requestBotMove();
+            store.requestBotMove();
           }
           break;
         case 'p':
@@ -303,7 +240,7 @@ const GamePlay: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [store, requestBotMove, handlePass, handleGetScore, handleToggleBestMoves]);
+  }, [store, handlePass, handleGetScore, handleToggleBestMoves]);
 
   return (
     <div style={{ padding: '20px', position: 'relative' }}>
@@ -429,23 +366,22 @@ const GamePlay: React.FC = () => {
                 <div style={{ marginBottom: '10px', fontSize: '14px' }}>
                   <strong>Handicap:</strong> {store.handicap} | <strong>Komi:</strong> {store.komi} | <strong>Move:</strong>{' '}
                   {store.currentPosition} / {store.moves.length}
-                  {store.isWaitingForBot && ' (Bot thinking...)'}
                 </div>
                 {/* Fixed height container to prevent flickering */}
-                <div style={{ 
-                  height: '28px', 
-                  marginBottom: '10px', 
-                  fontSize: '14px', 
-                  color: '#333', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  gap: '8px' 
+                <div style={{
+                  height: '28px',
+                  marginBottom: '10px',
+                  fontSize: '14px',
+                  color: '#333',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
                 }}>
                   {store.scoreString && (
                     <>
                       <span>{store.scoreString}</span>
-                      {store.moveEmoji && (
+                      {store.moveEmoji && !store.isWaitingForBot && (
                         <span style={{ fontSize: '18px', lineHeight: '1' }}>
                           {store.moveEmoji}
                         </span>
@@ -460,7 +396,7 @@ const GamePlay: React.FC = () => {
 
                 {/* AI Group */}
                 <div style={{ display: 'flex', gap: '2px', backgroundColor: '#F5E8C7', borderRadius: '8px', padding: '3px' }}>
-                  <button onClick={requestBotMove} title="AI Play (Enter)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333333' }}>
+                  <button onClick={() => store.requestBotMove()} title="AI Play (Enter)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333333' }}>
                     <FontAwesomeIcon icon={faRobot} size="lg" />
                   </button>
                   <button
