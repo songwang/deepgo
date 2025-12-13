@@ -25,6 +25,9 @@ const GamePlay: React.FC = () => {
   // File input ref for loading SGF
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Track previous move count for self-play delay
+  const prevMovesLengthRef = useRef<number>(0);
+
   // Inject API function into store on mount
   useEffect(() => {
     store.setGetMoveApi(getMove);
@@ -208,7 +211,7 @@ const GamePlay: React.FC = () => {
     store.goToMove(moveNumber);
   }, [store]);
 
-  // Self-play loop
+  // Self-play loop with 2 second delay (except first move)
   useEffect(() => {
     console.log('Self-play effect triggered', { isSelfPlaying: store.isSelfPlaying, isWaitingForBot: store.isWaitingForBot, disable_ai: store.settings.disable_ai });
     if (store.shouldContinueSelfPlay()) {
@@ -216,8 +219,19 @@ const GamePlay: React.FC = () => {
         return;
       }
 
-      console.log('Requesting bot move for self-play...');
-      store.requestBotMove();
+      // Check if this is the first move (no change in moves count)
+      const isFirstMove = store.moves.length === prevMovesLengthRef.current;
+      const delay = isFirstMove ? 0 : 2000; // No delay for first move, 2s for subsequent moves
+
+      console.log(isFirstMove ? 'Requesting bot move immediately...' : 'Requesting bot move in 2 seconds...');
+      const timer = setTimeout(() => {
+        store.requestBotMove();
+      }, delay);
+
+      // Update ref for next iteration
+      prevMovesLengthRef.current = store.moves.length;
+
+      return () => clearTimeout(timer);
     }
   }, [store.isSelfPlaying, store.moves, store.isWaitingForBot, store.settings.disable_ai, store]);
 

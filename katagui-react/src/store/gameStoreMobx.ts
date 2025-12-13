@@ -631,6 +631,13 @@ export class GameStore {
   };
 
   handleBotMoveResponse = (response: any): void => {
+    // Update the previous (human) move's analysis with the bot response diagnostics
+    this.updateLastMoveAnalysis(
+      response.diagnostics.winprob,
+      response.diagnostics.score,
+      response.diagnostics
+    );
+
     const botMove: Move = {
       mv: response.bot_move,
       p: response.diagnostics.winprob,
@@ -796,10 +803,10 @@ export class GameStore {
     // Set waiting state immediately if bot will respond
     if (willRequestBotMove) {
       this.isWaitingForBot = true;
-    }
-
-    // Get analysis for the human move
-    if (!this.settings.disable_ai && this.getMoveApi) {
+      // Request bot move - the bot response will include analysis for the human move
+      this.requestBotMove();
+    } else if (!this.settings.disable_ai && this.getMoveApi) {
+      // Bot won't respond, but we still need analysis for the human move
       try {
         const moveList = this.getMoveList();
         const response = await this.getMoveApi(this.boardSize, moveList, this.komi, this.handicap);
@@ -812,16 +819,7 @@ export class GameStore {
         }
       } catch (err) {
         console.warn('Failed to get analysis for human move:', err);
-        if (willRequestBotMove) {
-          this.isWaitingForBot = false;
-        }
-        return;
       }
-    }
-
-    // Request bot move if needed (don't await - let it run in background)
-    if (willRequestBotMove) {
-      this.requestBotMove();
     }
   };
 
