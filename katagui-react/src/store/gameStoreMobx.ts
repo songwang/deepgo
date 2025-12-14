@@ -1,4 +1,4 @@
-import { makeObservable, observable, computed, action, reaction } from 'mobx';
+import { makeObservable, observable, computed, action } from 'mobx';
 import type {
   Move,
   StoneType,
@@ -10,6 +10,7 @@ import type {
 } from '../types/game';
 import { getHandicapPoints, sgfToPoint } from '../services/coordinateUtils';
 import { applyMove } from '../services/goLogic';
+import { GameNode } from '../types/GameNode';
 
 // Type for the API functions that the store will use
 type GetMoveFunction = (boardSize: number, moves: string[], komi: number, handicap: number) => Promise<any>;
@@ -30,8 +31,12 @@ export class GameStore {
   boardSize: BoardSize = 19;
   handicap: number = 0;
   komi: number = 7.5;
-  moves: Move[] = [];
-  currentPosition: number = 0;
+  moves: Move[] = []; // Kept for backward compatibility
+  currentPosition: number = 0; // Kept for backward compatibility
+
+  // Tree structure for variations
+  rootNode: GameNode;
+  currentNode: GameNode;
 
   // Game metadata (from loaded SGF)
   playerBlack: string = '';
@@ -68,6 +73,11 @@ export class GameStore {
   private getMoveApi: GetMoveFunction | null = null;
 
   constructor() {
+    // Initialize root node with a dummy move representing the starting position
+    const initialMove: Move = { mv: 'root', agent: 'human' };
+    this.rootNode = new GameNode(initialMove, null);
+    this.currentNode = this.rootNode;
+
     makeObservable(this, {
       // Observable properties
       gameHash: observable,
@@ -76,6 +86,8 @@ export class GameStore {
       komi: observable,
       moves: observable,
       currentPosition: observable,
+      rootNode: observable,
+      currentNode: observable,
       playerBlack: observable,
       playerWhite: observable,
       gameResult: observable,
@@ -112,6 +124,8 @@ export class GameStore {
       badMoves: computed,
       computedPlayerBlack: computed,
       computedPlayerWhite: computed,
+      isOnMainLine: computed,
+      pathToRoot: computed,
 
       // Actions
       setGameHash: action,
@@ -157,16 +171,54 @@ export class GameStore {
       playHumanMove: action,
       playHumanPass: action,
       requestBotMove: action,
+      returnToMainLine: action,
+      navigateToNode: action,
     });
   }
 
   // Computed properties
+
+  // Helper computed property: get path from root to current node
+  get pathToRoot(): GameNode[] {
+    const path: GameNode[] = [];
+    let node: GameNode | null = this.currentNode;
+    while (node !== null) {
+      path.unshift(node);
+      node = node.parent;
+    }
+    // Remove the root node (dummy 'root' move)
+    if (path.length > 0 && path[0].move.mv === 'root') {
+      path.shift();
+    }
+    return path;
+  }
+
+  get isOnMainLine(): boolean {
+    // Check if current node is on the main line
+    let node: GameNode | null = this.currentNode;
+    while (node !== null && node.parent !== null) {
+      const parent: GameNode = node.parent;
+      const indexInParent = parent.children.indexOf(node);
+      if (indexInParent !== parent.mainLineChildIndex) {
+        return false;
+      }
+      node = parent;
+    }
+    return true;
+  }
+
+  get canReturnToMainLine(): boolean {
+    // Show the back to main line button only when we're not on the main line
+    return !this.isOnMainLine;
+  }
+
   get nextPlayer(): StoneType {
+    const moveCount = this.pathToRoot.length;
     if (this.handicap >= 2) {
       // If handicap, white plays first
-      return this.currentPosition % 2 === 0 ? 'white' : 'black';
+      return moveCount % 2 === 0 ? 'white' : 'black';
     } else {
-      return this.currentPosition % 2 === 0 ? 'black' : 'white';
+      return moveCount % 2 === 0 ? 'black' : 'white';
     }
   }
 
@@ -182,13 +234,14 @@ export class GameStore {
       });
     }
 
-    // Apply moves up to current position
+    // Apply moves from root to current node
     let currentPlayer: StoneType = this.handicap >= 2 ? 'white' : 'black';
+    const path = this.pathToRoot;
 
-    for (let i = 0; i < this.currentPosition && i < this.moves.length; i++) {
-      const move = this.moves[i];
+    for (const node of path) {
+      const move = node.move;
 
-      if (move.mv !== 'pass' && move.mv !== 'resign') {
+      if (move.mv !== 'pass' && move.mv !== 'resign' && move.mv !== 'root') {
         const point = sgfToPoint(move.mv, this.boardSize);
         if (point) {
           // Apply move with proper capture detection
@@ -197,7 +250,12 @@ export class GameStore {
             // Replace board with new state that includes captures
             board.clear();
             result.board.forEach((stone, key) => board.set(key, stone));
+          } else {
+            // Log if a move fails to apply - this could be the source of the problem
+            console.warn(`Failed to apply move ${move.mv} for ${currentPlayer} at position ${point.row},${point.col}`);
           }
+        } else {
+          console.warn(`Failed to convert move ${move.mv} to point coordinates`);
         }
       }
 
@@ -208,24 +266,23 @@ export class GameStore {
   }
 
   get moveList(): string[] {
-    return this.moves.slice(0, this.currentPosition).map((m) => m.mv);
+    return this.pathToRoot.map((node) => node.move.mv);
   }
 
   get currentMove(): Move | null {
-    if (this.currentPosition === 0 || this.currentPosition > this.moves.length) return null;
-    return this.moves[this.currentPosition - 1];
+    if (this.currentNode === this.rootNode) return null;
+    return this.currentNode.move;
   }
 
   get lastMoveMark(): BoardMark | null {
-    if (this.moves.length === 0 || this.currentPosition === 0) return null;
+    const currentMove = this.currentMove;
+    if (!currentMove || currentMove.mv === 'pass' || currentMove.mv === 'resign' || currentMove.mv === 'root') return null;
 
-    const lastMove = this.moves[this.currentPosition - 1];
-    if (!lastMove || lastMove.mv === 'pass' || lastMove.mv === 'resign') return null;
-
-    const point = sgfToPoint(lastMove.mv, this.boardSize);
+    const point = sgfToPoint(currentMove.mv, this.boardSize);
     if (!point) return null;
 
-    const isBad = this.badMoves.some(bm => bm.moveNumber === this.currentPosition);
+    const moveNumber = this.pathToRoot.length;
+    const isBad = this.badMoves.some(bm => bm.moveNumber === moveNumber);
 
     return {
       coord: point,
@@ -334,7 +391,13 @@ export class GameStore {
   }
 
   get canPlayMove(): boolean {
-    return this.currentPosition === this.moves.length && !this.isWaitingForBot;
+    // Allow moves at any position (to support variations)
+    return !this.isWaitingForBot && !this.isSelfPlaying && !this.isReplaying;
+  }
+
+  get canRemoveMove(): boolean {
+    // Allow removing moves at any position (to support forking)
+    return this.currentNode.parent !== null;
   }
 
   get shouldShowHover(): boolean {
@@ -445,17 +508,22 @@ export class GameStore {
     // Original validation logic
     const p = current.p;
     const pp = previous.p;
-    if (p === '0.00' || pp === '0.00' || !p || !pp) {
+    if ((typeof p === 'string' && p === '0.00') || (typeof pp === 'string' && pp === '0.00') || !p || !pp) {
       return null; // no prob, no delta
     }
 
     const s = current.score;
     const ps = previous.score;
 
-    let pNum = Number(p);
-    let ppNum = Number(pp);
-    let sNum = Number(s);
-    let psNum = Number(ps);
+    let pNum = typeof p === 'string' ? Number(p) : p;
+    let ppNum = typeof pp === 'string' ? Number(pp) : pp;
+    let sNum = typeof s === 'string' ? Number(s) : s;
+    let psNum = typeof ps === 'string' ? Number(ps) : ps;
+
+    // Check if values exist (are not NaN or undefined)
+    if (pNum == null || isNaN(pNum) || ppNum == null || isNaN(ppNum) || sNum == null || isNaN(sNum) || psNum == null || isNaN(psNum)) {
+      return null;
+    }
 
     // Check if we are white
     const moveIndex = this.currentPosition - 1;
@@ -464,9 +532,9 @@ export class GameStore {
       isWhite = !isWhite;
     }
     if (isWhite) { // we are white
-      pNum = 1.0 - pNum; 
+      pNum = 1.0 - pNum;
       ppNum = 1.0 - ppNum; // flip probabilities
-      sNum = -1 * sNum; 
+      sNum = -1 * sNum;
       psNum = -1 * psNum; // flip scores
     }
 
@@ -537,17 +605,22 @@ export class GameStore {
     // Original validation logic
     const p = current.p;
     const pp = previous.p;
-    if (p === '0.00' || pp === '0.00' || !p || !pp) {
+    if ((typeof p === 'string' && p === '0.00') || (typeof pp === 'string' && pp === '0.00') || !p || !pp) {
       return null; // no prob, no delta
     }
 
     const s = current.score;
     const ps = previous.score;
 
-    let pNum = Number(p);
-    let ppNum = Number(pp);
-    let sNum = Number(s);
-    let psNum = Number(ps);
+    let pNum = typeof p === 'string' ? Number(p) : p;
+    let ppNum = typeof pp === 'string' ? Number(pp) : pp;
+    let sNum = typeof s === 'string' ? Number(s) : s;
+    let psNum = typeof ps === 'string' ? Number(ps) : ps;
+
+    // Check if values exist (are not NaN or undefined)
+    if (pNum == null || isNaN(pNum) || ppNum == null || isNaN(ppNum) || sNum == null || isNaN(sNum) || psNum == null || isNaN(psNum)) {
+      return null;
+    }
 
     // Check if we are white
     const moveIndex = moveNumber - 1;
@@ -556,9 +629,9 @@ export class GameStore {
       isWhite = !isWhite;
     }
     if (isWhite) { // we are white
-      pNum = 1.0 - pNum; 
+      pNum = 1.0 - pNum;
       ppNum = 1.0 - ppNum; // flip probabilities
-      sNum = -1 * sNum; 
+      sNum = -1 * sNum;
       psNum = -1 * psNum; // flip scores
     }
 
@@ -604,6 +677,12 @@ export class GameStore {
     this.boardSize = boardSize;
     this.moves = [];
     this.currentPosition = 0;
+
+    // Reset tree structure
+    const initialMove: Move = { mv: 'root', agent: 'human' };
+    this.rootNode = new GameNode(initialMove, null);
+    this.currentNode = this.rootNode;
+
     this.gameHash = '';
     this.playerBlack = ''; // Clear game metadata
     this.playerWhite = '';
@@ -619,46 +698,180 @@ export class GameStore {
   };
 
   addMove = (move: Move): void => {
-    // If we're in the middle of the game history, truncate future moves
-    const newMoves = [...this.moves.slice(0, this.currentPosition), move];
-    this.moves = newMoves;
-    this.currentPosition = newMoves.length;
+    // Check if a child with this move already exists
+    const existingChild = this.currentNode.children.find(child => child.move.mv === move.mv);
+
+    if (existingChild) {
+      // Navigate to existing variation
+      this.currentNode = existingChild;
+    } else {
+      // Remember the original number of children to detect if we're creating a variation
+      const originalChildrenCount = this.currentNode.children.length;
+
+      // Create new move as a child of current node
+      const newNode = this.currentNode.addChild(move);
+
+      // If the parent node had existing children, we're creating a new variation
+      // In this case, we should NOT change which child is the main line
+      if (originalChildrenCount > 0) {
+        // Creating a variation - preserve the existing main line
+        console.log('Created variation at move', this.pathToRoot.length);
+      }
+      // If the parent node had no children before, the new child becomes the main line
+      // (This happens automatically since it's the first child at index 0,
+      // and mainLineChildIndex defaults to 0 in GameNode constructor)
+
+      this.currentNode = newNode;
+    }
+
+    // Update backward compatibility properties
+    this.syncMovesArrayFromTree();
+    this.currentPosition = this.pathToRoot.length;
+
     // Clear marks when adding a move
     this.clearBestMoves();
     this.clearAlternativeMoves();
   };
 
-  removeLastMove = (): void => {
-    if (this.moves.length === 0) return;
+  // Helper method to sync the moves array from the tree (for backward compatibility)
+  private syncMovesArrayFromTree = (): void => {
+    this.moves = this.pathToRoot.map(node => node.move);
+  };
 
-    this.moves = this.moves.slice(0, -1);
-    this.currentPosition = this.moves.length;
+  removeLastMove = (): void => {
+    // Navigate to parent if not at root
+    if (this.currentNode.parent) {
+      this.currentNode = this.currentNode.parent;
+
+      // Update backward compatibility properties
+      this.syncMovesArrayFromTree();
+      this.currentPosition = this.pathToRoot.length;
+    }
+
     // Clear marks when removing a move
     this.clearBestMoves();
     this.clearAlternativeMoves();
   };
 
-  goToMove = (position: number): void => {
-    this.currentPosition = Math.max(0, Math.min(position, this.moves.length));
-    // Clear best moves and alternative moves when navigating
+  navigateToNode = (targetNode: GameNode): void => {
+    this.currentNode = targetNode;
+    this.syncMovesArrayFromTree();
+    this.currentPosition = this.pathToRoot.length;
     this.clearBestMoves();
     this.clearAlternativeMoves();
   };
 
+  goToMove = (position: number): void => {
+    // If we're already at the target position, do nothing
+    if (position === this.currentPosition) {
+      return;
+    }
+
+    if (position <= 0) {
+      // Go to start
+      this.navigateToNode(this.rootNode);
+      return;
+    }
+
+    // Navigate back or forward depending on target position
+    if (position < this.currentPosition) {
+      // Going backward - move up the tree by the required number of steps
+      let node = this.currentNode;
+      let steps = this.currentPosition - position;
+      while (steps > 0 && node.parent) {
+        node = node.parent;
+        steps--;
+      }
+      this.navigateToNode(node);
+    } else {
+      // Going forward - follow the main line if possible
+      let node = this.currentNode;
+      let steps = position - this.currentPosition;
+      let currentPos = this.currentPosition;
+
+      while (steps > 0 && node.mainLineChild) {
+        node = node.mainLineChild;
+        steps--;
+        currentPos++;
+      }
+
+      this.navigateToNode(node);
+    }
+  };
+
   goToStart = (): void => {
-    this.goToMove(0);
+    this.navigateToNode(this.rootNode);
   };
 
   goToEnd = (): void => {
-    this.goToMove(this.moves.length);
+    // Navigate to the end of the current branch (not necessarily main line)
+    let node: GameNode = this.currentNode;
+    while (node.children.length > 0) {
+      // Follow the main line child if available, otherwise take the first child
+      let nextChild = node.mainLineChild || node.children[0];
+      if (nextChild) {
+        node = nextChild;
+      } else {
+        break;
+      }
+    }
+    this.navigateToNode(node);
   };
 
   nextMove = (): void => {
-    this.goToMove(this.currentPosition + 1);
+    // Move to next child on main line
+    const mainChild = this.currentNode.mainLineChild;
+    if (mainChild) {
+      this.navigateToNode(mainChild);
+    }
   };
 
   previousMove = (): void => {
-    this.goToMove(this.currentPosition - 1);
+    // Move to parent
+    if (this.currentNode.parent) {
+      this.navigateToNode(this.currentNode.parent);
+    }
+  };
+
+
+  returnToMainLine = (): void => {
+    // Navigate back to the main line of the game
+    // Find the forking point (where main line and current variation diverged)
+
+    // If we're already on the main line, do nothing
+    if (this.isOnMainLine) {
+      return;
+    }
+
+    // Walk up the tree from current node to find the forking point
+    // The forking point is where the main line and this variation diverged
+    let forkNode: GameNode | null = null;
+    let node: GameNode = this.currentNode;
+
+    while (node.parent !== null) {
+      const parent = node.parent;
+      const childIndex = parent.children.indexOf(node);
+      const mainLineChildIndex = parent.mainLineChildIndex;
+
+      // If this child is the main line child, then we're still on main line when going up
+      if (childIndex === mainLineChildIndex) {
+        // Continue up the tree
+        node = parent;
+      } else {
+        // This is the forking point - where the variation started
+        // The parent node is where the main line and variation diverge
+        forkNode = parent;
+        break;
+      }
+    }
+
+    // Now navigate to the main line at the forking point
+    if (forkNode) {
+      const mainLineChild = forkNode.mainLineChild;
+      if (mainLineChild) {
+        this.navigateToNode(mainLineChild);
+      }
+    }
   };
 
   updateSettings = (newSettings: Partial<Settings>): void => {

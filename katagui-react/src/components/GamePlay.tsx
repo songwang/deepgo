@@ -9,7 +9,7 @@ import type { Point, Move } from '../types/game';
 import { pointToSGF } from '../services/coordinateUtils';
 import { moves2sgf, downloadSgf, sgf2list, readFileAsText } from '../services/sgf';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBackwardStep, faBackward, faChevronLeft, faChevronRight, faForward, faForwardStep, faRotateLeft, faArrowRight, faRobot, faStar, faChartBar, faFolderOpen, faFloppyDisk, faPlay, faPause } from '@fortawesome/free-solid-svg-icons';
+import { faBackwardStep, faBackward, faChevronLeft, faChevronRight, faForward, faForwardStep, faRotateLeft, faArrowRight, faRobot, faStar, faChartBar, faFolderOpen, faFloppyDisk, faPlay, faPause, faCodeBranch } from '@fortawesome/free-solid-svg-icons';
 
 const GamePlay: React.FC = () => {
   // MobX store - no destructuring needed, direct access
@@ -597,10 +597,13 @@ const GamePlay: React.FC = () => {
                   <button onClick={store.goToEnd} disabled={store.currentPosition === store.moves.length} title="Last Move (End)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition === store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition === store.moves.length ? '#BBB199' : '#333333' }}>
                     <FontAwesomeIcon icon={faForwardStep} size="lg" />
                   </button>
-                  <button onClick={store.removeLastMove} disabled={store.moves.length === 0 || store.currentPosition !== store.moves.length} title="Undo (U)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: (store.moves.length === 0 || store.currentPosition !== store.moves.length) ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: (store.moves.length === 0 || store.currentPosition !== store.moves.length) ? '#BBB199' : '#333333' }}>
+                  <button onClick={store.removeLastMove} disabled={!store.canRemoveMove} title="Undo (U)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: (!store.canRemoveMove) ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: (!store.canRemoveMove) ? '#BBB199' : '#333333' }}>
                     <FontAwesomeIcon icon={faRotateLeft} size="lg" />
                   </button>
-                  <button onClick={handlePass} disabled={store.currentPosition !== store.moves.length} title="Pass (P)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: store.currentPosition !== store.moves.length ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: store.currentPosition !== store.moves.length ? '#BBB199' : '#333333' }}>
+                  <button onClick={store.returnToMainLine} disabled={!store.canReturnToMainLine} title="Return to Main Line" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: (!store.canReturnToMainLine) ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: (!store.canReturnToMainLine) ? '#BBB199' : '#333333' }}>
+                    <FontAwesomeIcon icon={faCodeBranch} size="lg" />
+                  </button>
+                  <button onClick={handlePass} disabled={!store.canPlayMove} title="Pass (P)" style={{ background: 'transparent', border: 'none', padding: '4px', cursor: (!store.canPlayMove) ? 'not-allowed' : 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: (!store.canPlayMove) ? '#BBB199' : '#333333' }}>
                     <FontAwesomeIcon icon={faArrowRight} size="lg" />
                   </button>
                 </div>
