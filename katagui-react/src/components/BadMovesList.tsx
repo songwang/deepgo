@@ -92,13 +92,8 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
       tabIndex={0}
       style={{
         width: '280px',
-        border: '1px solid #ddd',
-        borderRadius: '8px',
-        backgroundColor: '#f8f9fa',
-        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        flex: 1,
         outline: 'none', // Hide focus ring
       }}
     >

@@ -36,6 +36,7 @@ interface ParsedSgf {
   moves: string[];
   probs: string[];
   scores: string[];
+  comments: string[];
   pb: string;
   pw: string;
   winner: string;
@@ -119,8 +120,14 @@ export function moves2sgf(
     const sgfCoords = pointToSgfCoords(move.mv);
     movestr += `;${color}[${sgfCoords}]`;
 
-    // Add AI analysis in comments if available
-    if (move.p !== undefined && move.score !== undefined) {
+    // Add comment if it exists
+    if (move.comment) {
+      const escapedComment = move.comment.replace(/]/g, '\\]');
+      movestr += `C[${escapedComment}]`;
+    }
+
+    // Add AI analysis in comments if available and there's no general comment
+    if (move.p !== undefined && move.score !== undefined && !move.comment) {
       const prob = (move.p * 100).toFixed(1);
       const score = move.score.toFixed(1);
       movestr += `C[P:${prob} S:${score}]`;
@@ -181,13 +188,29 @@ function parseMove(node: string): [string | null, string] {
 /**
  * Extract probability and score from comment
  */
-function parseComment(node: string): [string, string] {
+function parseProbScoreComment(node: string): [string, string] {
   const match = node.match(/C\[P:([^\s]+)\s+S:([^\]]+)\]/);
   if (match) {
     return [match[1], match[2]];
   }
   return ['0.00', '0.00'];
 }
+
+/**
+ * Extract a general comment from a node, ignoring special formats.
+ */
+function parseGeneralComment(node: string): string {
+  const cMatch = node.match(/C\[([^\]]*)\]/);
+  if (cMatch) {
+    const comment = cMatch[1];
+    // Ignore special formats used for other data
+    if (!comment.startsWith('P:') && !comment.startsWith('AI_ANALYSIS:')) {
+      return comment.replace(/\\\]/g, ']'); // Unescape closing brackets
+    }
+  }
+  return '';
+}
+
 
 /**
  * Extract AI analysis from SGF comment
@@ -232,6 +255,7 @@ export function sgf2list(sgf: string): ParsedSgf {
   const moves: string[] = [];
   const probs: string[] = [];
   const scores: string[] = [];
+  const comments: string[] = [];
 
   // Split into nodes (simplified parser for main line only)
   const nodePattern = /;[BW]\[[^\]]*\](?:C\[[^\]]*\])?/g;
@@ -247,6 +271,7 @@ export function sgf2list(sgf: string): ParsedSgf {
         moves.push('pass');
         probs.push('0.00');
         scores.push('0.00');
+        comments.push('');
       }
 
       // Add the move
@@ -254,9 +279,13 @@ export function sgf2list(sgf: string): ParsedSgf {
       moves.push(move);
 
       // Extract probability and score from comment
-      const [prob, score] = parseComment(node);
+      const [prob, score] = parseProbScoreComment(node);
       probs.push(prob);
       scores.push(score);
+
+      // Extract general comment
+      const comment = parseGeneralComment(node);
+      comments.push(comment);
     }
   }
 
@@ -264,6 +293,7 @@ export function sgf2list(sgf: string): ParsedSgf {
     moves,
     probs,
     scores,
+    comments,
     pb,
     pw,
     winner,

@@ -15,6 +15,7 @@ export interface Move {
   score?: number; // expected score (e.g., 1.5 = B+1.5)
   agent: MoveAgent;
   data?: KataGoDiagnostics;
+  comment?: string;
 }
 
 export interface KataGoMove {

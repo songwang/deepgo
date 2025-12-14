@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import GoBoard from './GoBoard';
-import BadMovesList from './BadMovesList';
+import RightPanelTabs from './RightPanelTabs';
 import { gameStore } from '../store/gameStoreMobx';
 import { useKataGo } from '../hooks/useKataGo';
 import { api } from '../services/api';
@@ -172,12 +172,14 @@ const GamePlay: React.FC = () => {
         const mv = parsed.moves[i];
         const prob = parseFloat(parsed.probs[i]) || 0;
         const score = parseFloat(parsed.scores[i]) || 0;
+        const comment = parsed.comments[i] || '';
 
               const move: Move = {
                 mv,
                 p: prob / 100, // Convert from percentage to 0-1
                 score,
                 agent: 'human',
+                comment,
               };
         store.addMove(move);
       }
@@ -657,7 +659,7 @@ const GamePlay: React.FC = () => {
               )}
             </div>
           )}
-          <BadMovesList onMoveClick={handleBadMoveClick} />
+          <RightPanelTabs onMoveClick={handleBadMoveClick} />
         </div>
       </div>
 
