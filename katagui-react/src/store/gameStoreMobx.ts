@@ -212,6 +212,17 @@ export class GameStore {
     return !this.isOnMainLine;
   }
 
+  get hasNextMove(): boolean {
+    // Check if there's a next move in the current path (could be main line or variation)
+    return this.currentNode.children.length > 0;
+  }
+
+  get canGoToEnd(): boolean {
+    // Check if we're not already at the end of the current branch
+    // We can go to end if there are moves ahead in any branch
+    return this.hasNextMove;
+  }
+
   get nextPlayer(): StoneType {
     const moveCount = this.pathToRoot.length;
     if (this.handicap >= 2) {
