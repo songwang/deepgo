@@ -626,7 +626,7 @@ const GamePlay: React.FC = () => {
         </div>
 
         {/* Right side - Game Info and Bad Moves panel */}
-        <div style={{ marginTop: '60px' }}> {/* Align with board area */}
+        <div style={{ marginTop: '60px', height: '480px', display: 'flex', flexDirection: 'column' }}> {/* Align with board area */}
           {/* Game Info (shown when SGF is loaded) */}
           {(store.playerBlack || store.playerWhite || store.gameResult) && (
             <div style={{

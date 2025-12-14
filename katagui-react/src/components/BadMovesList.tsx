@@ -46,13 +46,13 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
   return (
     <div style={{ 
       width: '280px', 
-      height: '500px',
       border: '1px solid #ddd', 
       borderRadius: '8px',
       backgroundColor: '#f8f9fa',
       overflow: 'hidden',
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      flex: 1
     }}>
       {/* Header */}
       <div style={{
@@ -133,14 +133,14 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#6c757d' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#6c757d', width: '45px' }}>
                     #{badMove.moveNumber}
                   </span>
-                  <span style={{ fontWeight: 'bold', marginLeft: '16px' }}>
+                  <span style={{ fontWeight: 'bold', width: '25px' }}>
                     {getPlayerColor(badMove.moveNumber)}
                   </span>
-                  <span style={{ marginLeft: '6px' }}>
+                  <span>
                     {badMove.move.mv.toUpperCase()}
                   </span>
                 </div>
