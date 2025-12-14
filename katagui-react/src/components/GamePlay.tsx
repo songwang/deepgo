@@ -9,7 +9,7 @@ import type { Point, Move } from '../types/game';
 import { pointToSGF } from '../services/coordinateUtils';
 import { moves2sgf, downloadSgf, sgf2list, readFileAsText } from '../services/sgf';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBackwardStep, faBackward, faChevronLeft, faChevronRight, faForward, faForwardStep, faRotateLeft, faArrowRight, faRobot, faStar, faChartBar, faFolderOpen, faFloppyDisk } from '@fortawesome/free-solid-svg-icons';
+import { faBackwardStep, faBackward, faChevronLeft, faChevronRight, faForward, faForwardStep, faRotateLeft, faArrowRight, faRobot, faStar, faChartBar, faFolderOpen, faFloppyDisk, faPlay, faPause } from '@fortawesome/free-solid-svg-icons';
 
 const GamePlay: React.FC = () => {
   // MobX store - no destructuring needed, direct access
@@ -27,6 +27,9 @@ const GamePlay: React.FC = () => {
 
   // Track previous move count for self-play delay
   const prevMovesLengthRef = useRef<number>(0);
+
+  // Track previous position for replay delay
+  const prevReplayPositionRef = useRef<number>(0);
 
   // Inject API function into store on mount
   useEffect(() => {
@@ -235,6 +238,50 @@ const GamePlay: React.FC = () => {
     }
   }, [store.isSelfPlaying, store.moves, store.isWaitingForBot, store]);
 
+  // Replay loop with 2 second delay (except first move)
+  useEffect(() => {
+    console.log('Replay effect triggered', { isReplaying: store.isReplaying, currentPosition: store.currentPosition });
+    if (store.shouldContinueReplay()) {
+      // Check if this is the first move of replay (no change in position)
+      const isFirstMove = store.currentPosition === prevReplayPositionRef.current;
+      const delay = isFirstMove ? 0 : 2000; // No delay for first move, 2s for subsequent moves
+
+      console.log(isFirstMove ? 'Advancing to next move immediately...' : 'Advancing to next move in 2 seconds...');
+      const timer = setTimeout(async () => {
+        const nextPosition = store.currentPosition + 1;
+        store.goToMove(nextPosition);
+
+        // Get AI analysis for this move if it doesn't have it
+        // Skip the very first move (position 1) since badness calculation needs a previous move
+        const move = store.moves[nextPosition - 1];
+        if (move && nextPosition > 1 && (!move.p || !move.score) && getMove) {
+          try {
+            const moveList = store.getMoveList().slice(0, nextPosition);
+            const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
+            if (response && response.diagnostics) {
+              // Update the move with analysis data using the store action
+              store.updateMoveAnalysis(
+                nextPosition,
+                response.diagnostics.winprob,
+                response.diagnostics.score,
+                response.diagnostics
+              );
+            }
+          } catch (err) {
+            console.warn('Failed to get analysis for replay move:', err);
+          }
+        }
+      }, delay);
+
+      // Update ref for next iteration
+      prevReplayPositionRef.current = store.currentPosition;
+
+      return () => clearTimeout(timer);
+    } else if (!store.isReplaying) {
+      // Reset ref when replay stops
+      prevReplayPositionRef.current = 0;
+    }
+  }, [store.isReplaying, store.currentPosition, store, getMove]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -358,6 +405,23 @@ const GamePlay: React.FC = () => {
               store.toggleSelfPlay();
             }} style={{ padding: '8px 16px' }}>
               {store.isSelfPlaying ? 'Stop' : 'Self-Play'}
+            </button>
+            <button
+              onClick={() => {
+                console.log('Replay button clicked');
+                store.toggleReplay();
+              }}
+              style={{
+                padding: '8px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+              disabled={store.currentPosition >= store.moves.length && !store.isReplaying}
+              title={store.isReplaying ? 'Pause replay' : 'Replay moves from current position'}
+            >
+              <FontAwesomeIcon icon={store.isReplaying ? faPause : faPlay} />
+              {store.isReplaying ? 'Pause' : 'Replay'}
             </button>
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
               <span style={{ fontSize: '14px', fontWeight: '500' }}>Bot Mode:</span>

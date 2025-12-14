@@ -50,6 +50,9 @@ export class GameStore {
   // Self-play state
   isSelfPlaying: boolean = false;
 
+  // Replay state
+  isReplaying: boolean = false;
+
   // Bad moves tracking
   badMovesThreshold: number = 3.0; // moves with badness > this are considered bad
   loadedBadMoves: Array<{moveNumber: number, move: Move, badness: number}> = []; // For loaded SGF files
@@ -73,6 +76,7 @@ export class GameStore {
       showBestMovesOnBoard: observable,
       isWaitingForBot: observable,
       isSelfPlaying: observable,
+      isReplaying: observable,
       badMovesThreshold: observable,
       loadedBadMoves: observable,
       alternativeMoves: observable,
@@ -126,7 +130,12 @@ export class GameStore {
       startSelfPlay: action,
       stopSelfPlay: action,
       toggleSelfPlay: action,
+      shouldContinueReplay: action,
+      startReplay: action,
+      stopReplay: action,
+      toggleReplay: action,
       updateLastMoveAnalysis: action,
+      updateMoveAnalysis: action,
       setBadMovesThreshold: action,
       setLoadedBadMoves: action,
       setGetMoveApi: action,
@@ -716,12 +725,42 @@ export class GameStore {
     }
   };
 
+  // Replay logic
+  shouldContinueReplay = (): boolean => {
+    return this.isReplaying && this.currentPosition < this.moves.length;
+  };
+
+  startReplay = (): void => {
+    this.isReplaying = true;
+  };
+
+  stopReplay = (): void => {
+    this.isReplaying = false;
+  };
+
+  toggleReplay = (): void => {
+    if (this.isReplaying) {
+      this.stopReplay();
+    } else {
+      this.startReplay();
+    }
+  };
+
   updateLastMoveAnalysis = (winprob: number, score: number, data: any): void => {
     const lastMove = this.moves[this.moves.length - 1];
     if (lastMove) {
       lastMove.p = winprob;
       lastMove.score = score;
       lastMove.data = data;
+    }
+  };
+
+  updateMoveAnalysis = (position: number, winprob: number, score: number, data: any): void => {
+    const move = this.moves[position - 1];
+    if (move) {
+      move.p = winprob;
+      move.score = score;
+      move.data = data;
     }
   };
 
