@@ -164,6 +164,9 @@ const GamePlay: React.FC = () => {
       // Start a new game with the loaded komi
       store.newGame(0, parsed.komi, store.boardSize);
 
+      // Set game metadata
+      store.setGameMetadata(parsed.pb, parsed.pw, parsed.RE, parsed.DT);
+
       // Add all moves from the SGF
       for (let i = 0; i < parsed.moves.length; i++) {
         const mv = parsed.moves[i];
@@ -622,8 +625,38 @@ const GamePlay: React.FC = () => {
           </div>
         </div>
 
-        {/* Right side - Bad Moves panel */}
+        {/* Right side - Game Info and Bad Moves panel */}
         <div style={{ marginTop: '60px' }}> {/* Align with board area */}
+          {/* Game Info (shown when SGF is loaded) */}
+          {(store.playerBlack || store.playerWhite || store.gameResult) && (
+            <div style={{
+              backgroundColor: '#FFF',
+              border: '2px solid #8B7355',
+              borderRadius: '8px',
+              padding: '8px',
+              marginBottom: '12px',
+              fontSize: '12px',
+              display: 'flex',
+              gap: '12px',
+              alignItems: 'center',
+            }}>
+              {store.playerBlack && (
+                <div>
+                  <strong>⚫</strong> {store.playerBlack}
+                </div>
+              )}
+              {store.playerWhite && (
+                <div>
+                  <strong>⚪</strong> {store.playerWhite}
+                </div>
+              )}
+              {store.gameResult && (
+                <div style={{ fontWeight: 'bold' }}>
+                  {store.gameResult}
+                </div>
+              )}
+            </div>
+          )}
           <BadMovesList onMoveClick={handleBadMoveClick} />
         </div>
       </div>

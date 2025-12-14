@@ -33,6 +33,12 @@ export class GameStore {
   moves: Move[] = [];
   currentPosition: number = 0;
 
+  // Game metadata (from loaded SGF)
+  playerBlack: string = '';
+  playerWhite: string = '';
+  gameResult: string = '';
+  gameDate: string = '';
+
   // UI state
   settings: Settings = DEFAULT_SETTINGS;
   isLoading: boolean = false;
@@ -69,6 +75,10 @@ export class GameStore {
       komi: observable,
       moves: observable,
       currentPosition: observable,
+      playerBlack: observable,
+      playerWhite: observable,
+      gameResult: observable,
+      gameDate: observable,
       settings: observable,
       isLoading: observable,
       error: observable,
@@ -101,6 +111,7 @@ export class GameStore {
 
       // Actions
       setGameHash: action,
+      setGameMetadata: action,
       newGame: action,
       addMove: action,
       removeLastMove: action,
@@ -554,6 +565,13 @@ export class GameStore {
     this.gameHash = hash;
   };
 
+  setGameMetadata = (pb: string, pw: string, result: string, date: string): void => {
+    this.playerBlack = pb;
+    this.playerWhite = pw;
+    this.gameResult = result;
+    this.gameDate = date;
+  };
+
   newGame = (handicap: number, komi: number, boardSize: BoardSize = 19): void => {
     this.handicap = handicap;
     this.komi = komi;
@@ -561,6 +579,10 @@ export class GameStore {
     this.moves = [];
     this.currentPosition = 0;
     this.gameHash = '';
+    this.playerBlack = ''; // Clear game metadata
+    this.playerWhite = '';
+    this.gameResult = '';
+    this.gameDate = '';
     this.error = null;
     this.loadedBadMoves = []; // Clear loaded bad moves for new game
     this.clearBestMoves(); // Clear best move labels
