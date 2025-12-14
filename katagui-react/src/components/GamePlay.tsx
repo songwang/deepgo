@@ -629,8 +629,8 @@ const GamePlay: React.FC = () => {
 
         {/* Right side - Game Info and Bad Moves panel */}
         <div style={{ marginTop: '60px', height: '480px', display: 'flex', flexDirection: 'column' }}> {/* Align with board area */}
-          {/* Game Info (shown when SGF is loaded) */}
-          {(store.playerBlack || store.playerWhite || store.gameResult) && (
+          {/* Game Info (shown when SGF is loaded or game is active) */}
+          {store.isGameActive && (
             <div style={{
               backgroundColor: '#FFF',
               border: '2px solid #8B7355',
@@ -639,17 +639,18 @@ const GamePlay: React.FC = () => {
               marginBottom: '12px',
               fontSize: '12px',
               display: 'flex',
-              gap: '12px',
               alignItems: 'center',
+              gap: '12px',
+              ...(store.gameResult ? {} : { justifyContent: 'center' })
             }}>
-              {store.playerBlack && (
+              {store.computedPlayerBlack && (
                 <div>
-                  <strong>⚫</strong> {store.playerBlack}
+                  <strong>⚫</strong> {store.computedPlayerBlack}
                 </div>
               )}
-              {store.playerWhite && (
+              {store.computedPlayerWhite && (
                 <div>
-                  <strong>⚪</strong> {store.playerWhite}
+                  <strong>⚪</strong> {store.computedPlayerWhite}
                 </div>
               )}
               {store.gameResult && (

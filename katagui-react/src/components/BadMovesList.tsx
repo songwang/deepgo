@@ -107,9 +107,6 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
           fontSize: '14px',
         }}
       >
-        <div style={{ marginBottom: '8px' }}>
-          <span>Bad Moves ({store.badMoves.length})</span>
-        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', fontWeight: 'normal' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <span>Sort:</span>

@@ -38,6 +38,7 @@ export class GameStore {
   playerWhite: string = '';
   gameResult: string = '';
   gameDate: string = '';
+  isGameActive: boolean = false;
 
   // UI state
   settings: Settings = DEFAULT_SETTINGS;
@@ -79,6 +80,7 @@ export class GameStore {
       playerWhite: observable,
       gameResult: observable,
       gameDate: observable,
+      isGameActive: observable,
       settings: observable,
       isLoading: observable,
       error: observable,
@@ -108,6 +110,8 @@ export class GameStore {
       moveEmoji: computed,
       moveBadness: computed,
       badMoves: computed,
+      computedPlayerBlack: computed,
+      computedPlayerWhite: computed,
 
       // Actions
       setGameHash: action,
@@ -343,6 +347,24 @@ export class GameStore {
            this.moves[this.moves.length - 2].mv === 'pass';
   }
 
+  get computedPlayerBlack(): string {
+    if (this.playerBlack) return this.playerBlack;
+    if (this.isSelfPlaying) return 'Bot';
+    if (this.settings.disable_ai) return 'Human';
+    
+    // Human vs Bot
+    return this.handicap >= 2 ? 'Bot' : 'Human';
+  }
+
+  get computedPlayerWhite(): string {
+    if (this.playerWhite) return this.playerWhite;
+    if (this.isSelfPlaying) return 'Bot';
+    if (this.settings.disable_ai) return 'Human';
+
+    // Human vs Bot
+    return this.handicap >= 2 ? 'Human' : 'Bot';
+  }
+
   get scoreString(): string {
     const currentMove = this.currentMove;
     if (!currentMove || !currentMove.p || !currentMove.score) {
@@ -573,6 +595,7 @@ export class GameStore {
     this.playerWhite = pw;
     this.gameResult = result;
     this.gameDate = date;
+    this.isGameActive = true;
   };
 
   newGame = (handicap: number, komi: number, boardSize: BoardSize = 19): void => {
@@ -592,6 +615,7 @@ export class GameStore {
     this.clearAlternativeMoves(); // Clear alternative move labels
     this.stopSelfPlay(); // Stop self-play if running
     this.stopReplay(); // Stop replay if running
+    this.isGameActive = true;
   };
 
   addMove = (move: Move): void => {
