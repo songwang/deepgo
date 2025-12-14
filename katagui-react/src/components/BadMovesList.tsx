@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import { gameStore } from '../store/gameStoreMobx';
 
@@ -11,6 +11,10 @@ type SortOrder = 'badness' | 'moveNumber';
 const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
   const store = gameStore;
   const [sortOrder, setSortOrder] = useState<SortOrder>('badness');
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  const listRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Sort bad moves based on selected order
   const sortedBadMoves = useMemo(() => {
@@ -21,6 +25,45 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
     // Default is already sorted by badness in the store
     return moves;
   }, [store.badMoves, sortOrder]);
+
+  // Reset selection when bad moves change
+  useEffect(() => {
+    setSelectedIndex(null);
+    itemRefs.current = [];
+  }, [sortedBadMoves]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (sortedBadMoves.length === 0) return;
+
+      let newIndex: number | null = selectedIndex;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        newIndex = selectedIndex === null ? 0 : Math.min(selectedIndex + 1, sortedBadMoves.length - 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        newIndex = selectedIndex === null ? sortedBadMoves.length - 1 : Math.max(selectedIndex - 1, 0);
+      }
+
+      if (newIndex !== selectedIndex && newIndex !== null) {
+        setSelectedIndex(newIndex);
+        onMoveClick(sortedBadMoves[newIndex].moveNumber);
+        itemRefs.current[newIndex as number]?.scrollIntoView({
+          block: 'nearest',
+          behavior: 'smooth',
+        });
+      }
+    };
+
+    const listElement = listRef.current;
+    listElement?.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      listElement?.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedIndex, sortedBadMoves, onMoveClick]);
 
   const getPlayerColor = (moveNumber: number): string => {
     // Adjust for handicap games where white plays first after handicap stones
@@ -44,24 +87,31 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
   };
 
   return (
-    <div style={{ 
-      width: '280px', 
-      border: '1px solid #ddd', 
-      borderRadius: '8px',
-      backgroundColor: '#f8f9fa',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      flex: 1
-    }}>
+    <div
+      ref={listRef}
+      tabIndex={0}
+      style={{
+        width: '280px',
+        border: '1px solid #ddd',
+        borderRadius: '8px',
+        backgroundColor: '#f8f9fa',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        flex: 1,
+        outline: 'none', // Hide focus ring
+      }}
+    >
       {/* Header */}
-      <div style={{
-        padding: '12px 16px',
-        borderBottom: '1px solid #ddd',
-        backgroundColor: '#fff',
-        fontWeight: 'bold',
-        fontSize: '14px'
-      }}>
+      <div
+        style={{
+          padding: '12px 16px',
+          borderBottom: '1px solid #ddd',
+          backgroundColor: '#fff',
+          fontWeight: 'bold',
+          fontSize: '14px',
+        }}
+      >
         <div style={{ marginBottom: '8px' }}>
           <span>Bad Moves ({store.badMoves.length})</span>
         </div>
@@ -95,18 +145,22 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
       </div>
 
       {/* Scrollable list */}
-      <div style={{ 
-        flex: 1, 
-        overflowY: 'auto',
-        padding: '8px'
-      }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '8px',
+        }}
+      >
         {sortedBadMoves.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            color: '#6c757d',
-            marginTop: '20px',
-            fontSize: '14px'
-          }}>
+          <div
+            style={{
+              textAlign: 'center',
+              color: '#6c757d',
+              marginTop: '20px',
+              fontSize: '14px',
+            }}
+          >
             No bad moves found!<br />
             <span style={{ fontSize: '12px' }}>Lower the threshold to see more moves</span>
           </div>
@@ -114,22 +168,20 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
           sortedBadMoves.map((badMove, index) => (
             <div
               key={`${badMove.moveNumber}-${badMove.move.mv}`}
-              onClick={() => onMoveClick(badMove.moveNumber)}
+              ref={(el) => (itemRefs.current[index] = el)}
+              onClick={() => {
+                setSelectedIndex(index);
+                onMoveClick(badMove.moveNumber);
+              }}
               style={{
                 padding: '4px 8px',
                 marginBottom: '2px',
-                backgroundColor: '#fff',
+                backgroundColor: selectedIndex === index ? '#dee2e6' : '#fff',
                 border: '1px solid #e9ecef',
                 borderRadius: '4px',
                 cursor: 'pointer',
                 transition: 'background-color 0.2s',
-                fontSize: '13px'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#f8f9fa';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#fff';
+                fontSize: '13px',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -145,18 +197,22 @@ const BadMovesList: React.FC<BadMovesListProps> = ({ onMoveClick }) => {
                   </span>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ 
-                    color: getBadnessColor(badMove.badness),
-                    fontWeight: 'bold',
-                    fontSize: '12px'
-                  }}>
+                  <div
+                    style={{
+                      color: getBadnessColor(badMove.badness),
+                      fontWeight: 'bold',
+                      fontSize: '12px',
+                    }}
+                  >
                     {badMove.badness.toFixed(1)}
                   </div>
-                  <div style={{ 
-                    color: getBadnessColor(badMove.badness),
-                    fontSize: '10px',
-                    fontWeight: '500'
-                  }}>
+                  <div
+                    style={{
+                      color: getBadnessColor(badMove.badness),
+                      fontSize: '10px',
+                      fontWeight: '500',
+                    }}
+                  >
                     {getBadnessLabel(badMove.badness)}
                   </div>
                 </div>
