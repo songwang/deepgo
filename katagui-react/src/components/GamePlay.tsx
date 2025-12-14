@@ -100,7 +100,11 @@ const GamePlay: React.FC = () => {
       store.toggleBestMovesOnBoard();
 
       const moveList = store.getMoveList();
+      console.log('[BEST MOVE] currentPosition:', store.currentPosition);
+      console.log('[BEST MOVE] moveList length:', moveList.length);
+      console.log('[BEST MOVE] moveList:', moveList);
       const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
+      console.log('[BEST MOVE] response best_ten:', response?.diagnostics?.best_ten);
       if (response) {
         store.setBestMoves(response.diagnostics.best_ten);
       }
@@ -118,13 +122,19 @@ const GamePlay: React.FC = () => {
         return;
       }
 
-      // Turning ON - clear first, then fetch alternatives for the position before current move
+      // Turning ON - clear first, then fetch alternatives for the current move
       store.clearAlternativeMoves();
       store.toggleAlternativeMovesOnBoard();
 
-      // Get move list up to the position BEFORE current move
+      // Get alternatives for what could have been played instead of the current move
+      // We need the position BEFORE the current move was played
+      console.log('[ALT] currentPosition:', store.currentPosition);
+      console.log('[ALT] total moves in game:', store.moves.length);
       const moveList = store.moves.slice(0, store.currentPosition - 1).map(m => m.mv);
+      console.log('[ALT] moveList length:', moveList.length);
+      console.log('[ALT] moveList:', moveList);
       const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
+      console.log('[ALT] response best_ten:', response?.diagnostics?.best_ten);
       if (response) {
         store.setAlternativeMoves(response.diagnostics.best_ten);
       }

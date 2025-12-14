@@ -262,14 +262,41 @@ export class GameStore {
       }
     }
 
+    // Alternative moves should be checked against the board BEFORE the current move
+    // Build board state at position - 1
+    const previousBoard = new Map<string, StoneType>();
+
+    // Place handicap stones
+    if (this.handicap >= 2) {
+      const handicapPoints = getHandicapPoints(this.boardSize, this.handicap);
+      handicapPoints.forEach((point) => {
+        const key = `${point.row},${point.col}`;
+        previousBoard.set(key, 'black');
+      });
+    }
+
+    // Apply moves up to position - 1
+    let currentPlayer: StoneType = this.handicap >= 2 ? 'white' : 'black';
+    for (let i = 0; i < this.currentPosition - 1 && i < this.moves.length; i++) {
+      const move = this.moves[i];
+      if (move.mv !== 'pass' && move.mv !== 'resign') {
+        const point = sgfToPoint(move.mv, this.boardSize);
+        if (point) {
+          const key = `${point.row},${point.col}`;
+          previousBoard.set(key, currentPlayer);
+        }
+      }
+      currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
+    }
+
     const letters = 'ABCDEFGHIJ';
     return movesToShow.slice(0, 10).map((move, idx): BoardMark | null => {
       const point = sgfToPoint(move.move, this.boardSize);
       if (!point) return null;
 
-      // Validate that the suggested move is on an empty intersection
+      // Validate that the suggested move is on an empty intersection on the PREVIOUS board
       const key = `${point.row},${point.col}`;
-      if (this.boardState.has(key)) {
+      if (previousBoard.has(key)) {
         console.warn(`Skipping alternative move ${move.move} - intersection is occupied`);
         return null;
       }
@@ -554,6 +581,9 @@ export class GameStore {
 
   goToMove = (position: number): void => {
     this.currentPosition = Math.max(0, Math.min(position, this.moves.length));
+    // Clear best moves and alternative moves when navigating
+    this.clearBestMoves();
+    this.clearAlternativeMoves();
   };
 
   goToStart = (): void => {
