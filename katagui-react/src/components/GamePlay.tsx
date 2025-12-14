@@ -100,11 +100,7 @@ const GamePlay: React.FC = () => {
       store.toggleBestMovesOnBoard();
 
       const moveList = store.getMoveList();
-      console.log('[BEST MOVE] currentPosition:', store.currentPosition);
-      console.log('[BEST MOVE] moveList length:', moveList.length);
-      console.log('[BEST MOVE] moveList:', moveList);
       const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
-      console.log('[BEST MOVE] response best_ten:', response?.diagnostics?.best_ten);
       if (response) {
         store.setBestMoves(response.diagnostics.best_ten);
       }
@@ -128,13 +124,8 @@ const GamePlay: React.FC = () => {
 
       // Get alternatives for what could have been played instead of the current move
       // We need the position BEFORE the current move was played
-      console.log('[ALT] currentPosition:', store.currentPosition);
-      console.log('[ALT] total moves in game:', store.moves.length);
       const moveList = store.moves.slice(0, store.currentPosition - 1).map(m => m.mv);
-      console.log('[ALT] moveList length:', moveList.length);
-      console.log('[ALT] moveList:', moveList);
       const response = await getMove(store.boardSize, moveList, store.komi, store.handicap);
-      console.log('[ALT] response best_ten:', response?.diagnostics?.best_ten);
       if (response) {
         store.setAlternativeMoves(response.diagnostics.best_ten);
       }
@@ -410,15 +401,34 @@ const GamePlay: React.FC = () => {
             <button onClick={() => setShowNewGameDialog(true)} style={{ padding: '8px 16px' }}>
               New Game
             </button>
-            <button onClick={() => {
-              console.log('Self-Play button clicked');
-              store.toggleSelfPlay();
-            }} style={{ padding: '8px 16px' }}>
-              {store.isSelfPlaying ? 'Stop' : 'Self-Play'}
+            <button
+              onClick={() => {
+                console.log('Self-Play button clicked');
+                // Stop replay if running
+                if (store.isReplaying) {
+                  store.stopReplay();
+                }
+                store.toggleSelfPlay();
+              }}
+              style={{
+                padding: '8px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+              disabled={store.isReplaying}
+              title={store.isSelfPlaying ? 'Pause self-play' : 'Start self-play (AI vs AI)'}
+            >
+              <FontAwesomeIcon icon={store.isSelfPlaying ? faPause : faPlay} />
+              {store.isSelfPlaying ? 'Pause' : 'Self-Play'}
             </button>
             <button
               onClick={() => {
                 console.log('Replay button clicked');
+                // Stop self-play if running
+                if (store.isSelfPlaying) {
+                  store.stopSelfPlay();
+                }
                 store.toggleReplay();
               }}
               style={{
@@ -427,7 +437,7 @@ const GamePlay: React.FC = () => {
                 alignItems: 'center',
                 gap: '8px'
               }}
-              disabled={store.currentPosition >= store.moves.length && !store.isReplaying}
+              disabled={(store.currentPosition >= store.moves.length && !store.isReplaying) || store.isSelfPlaying}
               title={store.isReplaying ? 'Pause replay' : 'Replay moves from current position'}
             >
               <FontAwesomeIcon icon={store.isReplaying ? faPause : faPlay} />

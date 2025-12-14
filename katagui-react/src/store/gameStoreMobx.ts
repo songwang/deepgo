@@ -563,6 +563,10 @@ export class GameStore {
     this.gameHash = '';
     this.error = null;
     this.loadedBadMoves = []; // Clear loaded bad moves for new game
+    this.clearBestMoves(); // Clear best move labels
+    this.clearAlternativeMoves(); // Clear alternative move labels
+    this.stopSelfPlay(); // Stop self-play if running
+    this.stopReplay(); // Stop replay if running
   };
 
   addMove = (move: Move): void => {
@@ -570,6 +574,9 @@ export class GameStore {
     const newMoves = [...this.moves.slice(0, this.currentPosition), move];
     this.moves = newMoves;
     this.currentPosition = newMoves.length;
+    // Clear marks when adding a move
+    this.clearBestMoves();
+    this.clearAlternativeMoves();
   };
 
   removeLastMove = (): void => {
@@ -577,6 +584,9 @@ export class GameStore {
 
     this.moves = this.moves.slice(0, -1);
     this.currentPosition = this.moves.length;
+    // Clear marks when removing a move
+    this.clearBestMoves();
+    this.clearAlternativeMoves();
   };
 
   goToMove = (position: number): void => {
@@ -657,7 +667,7 @@ export class GameStore {
   // Business logic methods
   makeMove = (move: Move): void => {
     this.addMove(move);
-    this.clearBestMoves();
+    // Note: clearBestMoves and clearAlternativeMoves are already called in addMove
   };
 
   makePass = (): Move => {
