@@ -697,7 +697,7 @@ export class GameStore {
 
   // Self-play logic
   shouldContinueSelfPlay = (): boolean => {
-    return this.isSelfPlaying && !this.isWaitingForBot && !this.settings.disable_ai && !this.isGameOver;
+    return this.isSelfPlaying && !this.isWaitingForBot && !this.isGameOver;
   };
 
   startSelfPlay = (): void => {

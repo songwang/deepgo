@@ -213,7 +213,7 @@ const GamePlay: React.FC = () => {
 
   // Self-play loop with 2 second delay (except first move)
   useEffect(() => {
-    console.log('Self-play effect triggered', { isSelfPlaying: store.isSelfPlaying, isWaitingForBot: store.isWaitingForBot, disable_ai: store.settings.disable_ai });
+    console.log('Self-play effect triggered', { isSelfPlaying: store.isSelfPlaying, isWaitingForBot: store.isWaitingForBot });
     if (store.shouldContinueSelfPlay()) {
       if (store.checkSelfPlayStop()) {
         return;
@@ -233,7 +233,7 @@ const GamePlay: React.FC = () => {
 
       return () => clearTimeout(timer);
     }
-  }, [store.isSelfPlaying, store.moves, store.isWaitingForBot, store.settings.disable_ai, store]);
+  }, [store.isSelfPlaying, store.moves, store.isWaitingForBot, store]);
 
 
   // Keyboard shortcuts
