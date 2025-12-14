@@ -102,6 +102,7 @@ export interface BoardMark {
   coord: Point;
   type: MarkType;
   value?: string; // for letters/numbers
+  color?: string;
 }
 
 export interface Settings {

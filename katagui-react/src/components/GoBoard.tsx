@@ -179,9 +179,14 @@ const GoBoard: React.FC<GoBoardProps> = ({
       const stoneKey = pointToKey(mark.coord);
       const stoneType = stones.get(stoneKey);
 
-      // Determine mark color based on stone color
-      ctx.fillStyle = stoneType === 'black' ? '#fff' : '#000';
-      ctx.strokeStyle = ctx.fillStyle;
+      // Determine mark color
+      if (mark.color) {
+        ctx.strokeStyle = mark.color;
+        ctx.fillStyle = mark.color;
+      } else {
+        ctx.fillStyle = stoneType === 'black' ? '#fff' : '#000';
+        ctx.strokeStyle = ctx.fillStyle;
+      }
       ctx.lineWidth = 2;
 
       const markSize = cellSize * 0.3;

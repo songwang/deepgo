@@ -221,9 +221,12 @@ export class GameStore {
     const point = sgfToPoint(lastMove.mv, this.boardSize);
     if (!point) return null;
 
+    const isBad = this.badMoves.some(bm => bm.moveNumber === this.currentPosition);
+
     return {
       coord: point,
       type: 'circle' as const,
+      color: isBad ? 'red' : undefined,
     };
   }
 
